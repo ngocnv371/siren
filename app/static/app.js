@@ -1,533 +1,9 @@
-// ═══════════════════════════════════════════════════════════
-//  Server-Sent Events — real-time pipeline feedback
-// ═══════════════════════════════════════════════════════════
-const ACTIVITY_MAX = 60;
-let _activityLog = [];
-let _evtSource = null;
-let _sseRetryTimer = null;
-let _refreshTimer = null;
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "https://esm.sh/react@18.3.1";
+import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
+import htm from "https://esm.sh/htm@3.1.1";
 
-function connectSSE() {
-  if (_evtSource) {
-    _evtSource.close();
-    _evtSource = null;
-  }
-  clearTimeout(_sseRetryTimer);
-  _evtSource = new EventSource("/api/events");
+const html = htm.bind(React.createElement);
 
-  _evtSource.onopen = () => {
-    setNavIndicator(false, "connected");
-  };
-
-  _evtSource.onmessage = (e) => {
-    let data;
-    try {
-      data = JSON.parse(e.data);
-    } catch {
-      return;
-    }
-
-    if (data.type === "status") {
-      setNavIndicator(
-        data.active > 0,
-        data.active > 0 ? `running (${data.active})` : "idle",
-      );
-    } else if (data.type === "activity") {
-      pushActivity(data);
-    } else if (data.type === "project_update") {
-      onProjectUpdate(data.project_id, data.status);
-    }
-  };
-
-  _evtSource.onerror = () => {
-    setNavIndicator(false, "disconnected");
-    _evtSource.close();
-    _evtSource = null;
-    _sseRetryTimer = setTimeout(connectSSE, 4000);
-  };
-}
-
-function setNavIndicator(active, labelText) {
-  const dot = $("sse-dot");
-  const label = $("sse-label");
-  if (!dot) return;
-  dot.className =
-    "sse-dot " +
-    (active ? "running" : labelText === "disconnected" ? "error" : "idle");
-  if (label) label.textContent = labelText || (active ? "running" : "idle");
-}
-
-function pushActivity(data) {
-  _activityLog.unshift({
-    ts: data.ts ? new Date(data.ts * 1000) : new Date(),
-    msg: data.msg || "",
-    level: data.level || "info",
-    project_id: data.project_id || null,
-    stage: data.stage || null,
-  });
-  if (_activityLog.length > ACTIVITY_MAX) _activityLog.length = ACTIVITY_MAX;
-  renderActivityLog();
-}
-
-function renderActivityLog() {
-  const el = $("activity-log");
-  if (!el) return;
-  if (!_activityLog.length) {
-    el.innerHTML = '<div class="activity-empty">No activity yet</div>';
-    return;
-  }
-  el.innerHTML = _activityLog
-    .map(
-      (e) => `
-    <div class="activity-entry level-${escHtml(e.level)}">
-      <span class="activity-time">${e.ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
-      <span class="activity-msg">${escHtml(e.msg)}</span>
-      ${e.project_id ? `<span class="activity-pid" title="${escHtml(e.project_id)}">${e.project_id.slice(0, 8)}</span>` : ""}
-    </div>`,
-    )
-    .join("");
-}
-
-function onProjectUpdate(project_id, status) {
-  // Auto-refresh the open detail panel for this project
-  if (_detailId === project_id) {
-    openDetail(project_id);
-  }
-  // Debounce dashboard + list refresh
-  clearTimeout(_refreshTimer);
-  _refreshTimer = setTimeout(() => {
-    loadDashboard();
-    if (activePage === "projects") loadProjects();
-  }, 600);
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Utils
-// ═══════════════════════════════════════════════════════════
-const $ = (id) => document.getElementById(id);
-
-function toast(msg, type = "success") {
-  const el = $("toast");
-  el.textContent = msg;
-  el.className = `show ${type}`;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => {
-    el.className = "";
-  }, 2800);
-}
-
-async function api(method, path, body) {
-  const opts = { method, headers: { "Content-Type": "application/json" } };
-  if (body !== undefined) opts.body = JSON.stringify(body);
-  const res = await fetch("/api" + path, opts);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || res.statusText);
-  }
-  if (res.status === 204) return null;
-  return res.json();
-}
-
-function badge(status) {
-  return `<span class="badge badge-${status}">${status.replace(/_/g, " ")}</span>`;
-}
-function statusColor(s) {
-  return (
-    {
-      idea: "var(--s-idea)",
-      approved: "var(--s-approved)",
-      content_ready: "var(--s-content_ready)",
-      scenes_ready: "var(--s-scenes_ready)",
-      tts_ready: "var(--s-tts_ready)",
-      music_ready: "var(--s-music_ready)",
-      images_ready: "var(--s-images_ready)",
-      media_ready: "var(--s-media_ready)",
-      clips_ready: "var(--s-clips_ready)",
-      rendered: "var(--s-rendered)",
-      uploaded: "var(--s-uploaded)",
-      failed: "var(--s-failed)",
-    }[s] || "var(--text)"
-  );
-}
-function fmtDate(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return (
-    d.toLocaleDateString() +
-    " " +
-    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  );
-}
-function escHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function sanitizeClassNames(classNames) {
-  if (!classNames) return "";
-  return String(classNames)
-    .trim()
-    .split(/\s+/)
-    .filter((name) => /^[a-zA-Z0-9_-]+$/.test(name))
-    .join(" ");
-}
-
-function fmtScheduleDate(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString([], {
-    weekday: "short",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-// ═══════════════════════════════════════════════════════════
-//  State
-// ═══════════════════════════════════════════════════════════
-let currentTopicId = localStorage.getItem("as_topic_id") || 'all';
-let currentTopicText = localStorage.getItem("as_topic_text") || null;
-let allTopics = [];
-let activePage = "splash";
-let selectedCount = 5;
-let _bestShortsData = [];
-
-const BEST_SHORTS_CACHE_PREFIX = "as_best_shorts_v1";
-
-function bestShortsCacheKey() {
-  return `${BEST_SHORTS_CACHE_PREFIX}:${currentTopicId || "all"}`;
-}
-
-function saveBestShortsCache(shorts) {
-  const payload = {
-    topic_id: currentTopicId || "all",
-    fetched_at: new Date().toISOString(),
-    shorts,
-  };
-  localStorage.setItem(bestShortsCacheKey(), JSON.stringify(payload));
-}
-
-function readBestShortsCache() {
-  const raw = localStorage.getItem(bestShortsCacheKey());
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed?.shorts)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function setBestShortsSummary(shorts) {
-  const matched = shorts.filter((item) => item.project_id).length;
-  $("bs-total").textContent = shorts.length;
-  $("bs-matched").textContent = matched;
-  $("bs-unmatched").textContent = shorts.length - matched;
-}
-
-function clearBestShortsAnalysis() {
-  const el = $("best-shorts-analysis");
-  if (el) el.innerHTML = "";
-}
-
-function renderBestShortsAnalysis(text, source = "AI") {
-  const el = $("best-shorts-analysis");
-  if (!el) return;
-  el.innerHTML = `
-    <div class="best-shorts-analysis">
-      <div class="best-shorts-analysis-head">
-        <div class="best-shorts-analysis-title">Shorts Analysis</div>
-        <div class="best-shorts-analysis-badge">${escHtml(source)}</div>
-      </div>
-      <div class="best-shorts-analysis-body">${escHtml(text || "No analysis returned.")}</div>
-    </div>`;
-}
-
-function renderBestShortsTable(shorts) {
-  const wrap = $("best-shorts-wrap");
-  if (!wrap) return;
-
-  if (!shorts.length) {
-    wrap.innerHTML = '<div class="empty">No Shorts found in YouTube Studio.</div>';
-    return;
-  }
-
-  wrap.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Title</th>
-          <th>Views</th>
-          <th>Project</th>
-          <th>Status</th>
-          <th>Created</th>
-          <th>Link</th>
-        </tr>
-      </thead>
-      <tbody>${shorts
-        .map(
-          (item, index) => `
-        <tr ${item.project_id ? `onclick="openDetail('${item.project_id}')"` : ""}>
-          <td class="td-rank">${index + 1}</td>
-          <td class="td-title">${escHtml(item.title || "Untitled short")}</td>
-          <td class="td-views">${Number(item.views || 0).toLocaleString()}</td>
-          <td class="td-title">${item.project_id ? escHtml(item.project_id.slice(0, 8)) : '<span class="text-muted">Not matched</span>'}</td>
-          <td>${item.status ? badge(item.status) : '<span class="text-muted">—</span>'}</td>
-          <td class="td-date">${fmtDate(item.created_at)}</td>
-          <td class="td-link" onclick="event.stopPropagation()"><a class="table-link" href="${escHtml(item.url)}" target="_blank" rel="noreferrer">Open</a></td>
-        </tr>`,
-        )
-        .join("")}
-      </tbody>
-    </table>`;
-}
-
-function hydrateBestShortsFromCache() {
-  const cached = readBestShortsCache();
-  if (!cached) {
-    _bestShortsData = [];
-    return false;
-  }
-  _bestShortsData = cached.shorts;
-  setBestShortsSummary(cached.shorts);
-  renderBestShortsTable(cached.shorts);
-  return true;
-}
-
-function buildLocalBestShortsAnalysis(shorts) {
-  if (!shorts.length) return "No shorts available to analyze.";
-
-  const sorted = [...shorts].sort((a, b) => (b.views || 0) - (a.views || 0));
-  const top = sorted.slice(0, Math.min(5, sorted.length));
-  const totalViews = sorted.reduce((acc, item) => acc + Number(item.views || 0), 0);
-  const avgViews = Math.round(totalViews / sorted.length);
-  const matched = sorted.filter((item) => item.project_id).length;
-
-  const lines = [
-    `Total shorts: ${sorted.length}`,
-    `Average views: ${avgViews.toLocaleString()}`,
-    `Matched to project: ${matched}/${sorted.length}`,
-    "",
-    "Top performers:",
-    ...top.map((item, idx) => `${idx + 1}. ${item.title || "Untitled short"} (${Number(item.views || 0).toLocaleString()} views)`),
-  ];
-  return lines.join("\n");
-}
-
-async function analyzeBestShorts() {
-  const analyzeBtn = $("btn-best-shorts-analyze");
-  const shorts = _bestShortsData.length
-    ? _bestShortsData
-    : readBestShortsCache()?.shorts || [];
-
-  if (!shorts.length) {
-    toast("Fetch data first so Analyze has content", "error");
-    return;
-  }
-
-  if (analyzeBtn) {
-    analyzeBtn.disabled = true;
-    analyzeBtn.textContent = "Analyzing…";
-  }
-
-  try {
-    const payload = {
-      shorts: shorts.slice(0, 25).map((item) => ({
-        title: item.title || "Untitled short",
-        views: Number(item.views || 0),
-      })),
-    };
-    const res = await api("POST", "/dashboard/best-shorts/analyze", payload);
-    if (!res?.analysis) throw new Error("No analysis response");
-    renderBestShortsAnalysis(res.analysis, "AI");
-  } catch {
-    const localAnalysis = buildLocalBestShortsAnalysis(shorts);
-    renderBestShortsAnalysis(localAnalysis, "Local summary");
-    toast("AI analysis unavailable. Showing local summary.", "error");
-  } finally {
-    if (analyzeBtn) {
-      analyzeBtn.disabled = false;
-      analyzeBtn.textContent = "Analyze";
-    }
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Topic workspace
-// ═══════════════════════════════════════════════════════════
-function toggleTopicDropdown(e) {
-  e.stopPropagation();
-  $("topic-dropdown").classList.toggle("open");
-  if ($("topic-dropdown").classList.contains("open")) {
-    setTimeout(() => $("topic-add-input").focus(), 50);
-  }
-}
-
-document.addEventListener("click", (e) => {
-  if (!$("topic-ws").contains(e.target))
-    $("topic-dropdown").classList.remove("open");
-});
-
-async function loadTopics() {
-  try {
-    allTopics = await api("GET", "/topics");
-  } catch {
-    allTopics = [];
-  }
-  if (currentTopicId && !allTopics.find((t) => t.id === currentTopicId)) {
-    currentTopicId = 'all';
-    currentTopicText = null;
-    localStorage.removeItem("as_topic_id");
-    localStorage.removeItem("as_topic_text");
-  }
-  renderTopicDropdown();
-  applyTopic();
-}
-
-function renderTopicDropdown() {
-  const list = $("topic-list-dd");
-  let html = "";
-  if (!allTopics.length) {
-    html = '<div class="topic-empty">No topics yet — add one below.</div>';
-  } else {
-    // Add 'All Topics' option
-    html += `<div class="topic-item ${currentTopicId === "all" ? "selected" : ""}"
-      onclick="selectTopic('all', 'All Topics')">
-      <span class="topic-text" title="All Topics">All Topics</span>
-    </div>`;
-    html += allTopics
-      .map(
-        (t) => `
-      <div class="topic-item ${t.id === currentTopicId ? "selected" : ""}"
-           onclick="selectTopic('${escHtml(t.id)}', ${escHtml(JSON.stringify(t.topic))})">
-        <span class="topic-text" title="${escHtml(t.topic)}">${escHtml(t.topic)}</span>
-        <button class="topic-del" title="Delete" onclick="deleteTopic(event,'${escHtml(t.id)}')">✕</button>
-      </div>`,
-      )
-      .join("");
-  }
-  list.innerHTML = html;
-}
-
-function selectTopic(id, text) {
-  currentTopicId = id;
-  currentTopicText = text;
-  localStorage.setItem("as_topic_id", id);
-  localStorage.setItem("as_topic_text", text);
-  $("topic-dropdown").classList.remove("open");
-  applyTopic();
-  refreshCurrentPage();
-}
-
-function applyTopic() {
-  const btn = $("topic-ws-btn");
-  if (currentTopicId && currentTopicId !== "all") {
-    btn.classList.remove("no-topic");
-    $("topic-ws-label").textContent = currentTopicText || "Topic selected";
-    $("btn-generate").disabled = false;
-  } else if (currentTopicId === "all") {
-    btn.classList.remove("no-topic");
-    $("topic-ws-label").textContent = "All Topics";
-    $("btn-generate").disabled = true;
-  } else {
-    btn.classList.add("no-topic");
-    $("topic-ws-label").textContent = "Select a topic…";
-    $("btn-generate").disabled = true;
-  }
-  renderTopicDropdown();
-  if (!currentTopicId) switchPage("splash");
-  else if (activePage === "splash") {
-    switchPage("dashboard");
-    loadDashboard();
-  }
-}
-
-async function addTopic() {
-  const input = $("topic-add-input");
-  const text = input.value.trim();
-  if (!text) return;
-  try {
-    const t = await api("POST", "/topics", { topic: text });
-    allTopics.push(t);
-    input.value = "";
-    selectTopic(t.id, t.topic);
-    toast("Topic created", "success");
-  } catch (e) {
-    toast(e.message, "error");
-  }
-}
-
-async function deleteTopic(e, id) {
-  e.stopPropagation();
-  const t = allTopics.find((t) => t.id === id);
-  if (
-    !confirm(
-      `Delete topic "${t?.topic}"?\nThis will fail if it has associated projects.`,
-    )
-  )
-    return;
-  try {
-    await api("DELETE", `/topics/${id}`);
-    allTopics = allTopics.filter((t) => t.id !== id);
-    if (currentTopicId === id) {
-      currentTopicId = null;
-      currentTopicText = null;
-      localStorage.removeItem("as_topic_id");
-      localStorage.removeItem("as_topic_text");
-    }
-    toast("Topic deleted", "success");
-    renderTopicDropdown();
-    applyTopic();
-  } catch (e) {
-    toast(e.message, "error");
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Navigation
-// ═══════════════════════════════════════════════════════════
-function switchPage(id) {
-  document
-    .querySelectorAll(".page")
-    .forEach((p) => p.classList.remove("active"));
-  $(`page-${id}`).classList.add("active");
-  activePage = id;
-}
-
-function showPage(id, tab) {
-  if (!currentTopicId) {
-    toast("Select a topic first", "error");
-    return;
-  }
-  document
-    .querySelectorAll(".nav-tab")
-    .forEach((t) => t.classList.remove("active"));
-  tab.classList.add("active");
-  switchPage(id);
-  if (id === "dashboard") loadDashboard();
-  if (id === "projects") loadProjects();
-  if (id === "best-shorts") {
-    clearBestShortsAnalysis();
-    hydrateBestShortsFromCache();
-  }
-}
-
-function refreshCurrentPage() {
-  if (activePage === "dashboard") loadDashboard();
-  if (activePage === "projects") loadProjects();
-  if (activePage === "best-shorts") hydrateBestShortsFromCache();
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Dashboard
-// ═══════════════════════════════════════════════════════════
 const PIPELINE_STATUSES = [
   "idea",
   "approved",
@@ -543,937 +19,1240 @@ const PIPELINE_STATUSES = [
   "failed",
 ];
 
-async function loadDashboard() {
-  try {
-    const params = new URLSearchParams({ limit: "200" });
-    if (currentTopicId !== "all") params.set("topic_id", currentTopicId);
-    const data = await api("GET", `/dashboard?${params}`);
-    const sc = data.status_counts;
-    const sched = data.scheduler || {};
-    $("s-total").textContent = data.total;
-    $("s-rendered").textContent = sc.rendered || 0;
-    $("s-failed").textContent = sc.failed || 0;
-    $("s-idea").textContent = sc.idea || 0;
+const BULK_STATUS_OPTIONS = [...PIPELINE_STATUSES];
+const BEST_SHORTS_CACHE_PREFIX = "as_best_shorts_v1";
+const ACTIVITY_MAX = 60;
 
-    const nextRuns = Array.isArray(sched.next_runs) ? sched.next_runs : [];
-    const stateClass = sched.enabled ? "is-on" : "is-off";
-    const stateText = sched.enabled ? "Enabled" : "Disabled";
-    const runMarkup = nextRuns.length
-      ? nextRuns
-          .map((ts) => `<span class="schedule-pill">${escHtml(fmtScheduleDate(ts))}</span>`)
-          .join("")
-      : '<span class="text-muted">No upcoming times</span>';
-    const parseErrorMarkup = sched.parse_error
-      ? `<div class="schedule-error">${escHtml(sched.parse_error)}</div>`
-      : "";
-
-    $("schedule-card").innerHTML = `
-      <div class="schedule-header">
-        <span class="schedule-state ${stateClass}">${stateText}</span>
-      </div>
-      <div class="schedule-row">
-        <span class="schedule-label">Cron</span>
-        <span class="schedule-value">${escHtml(sched.upload_rendered_cron || "—")}</span>
-      </div>
-      <div class="schedule-row">
-        <span class="schedule-label">Next runs</span>
-        <span class="schedule-runs">${runMarkup}</span>
-      </div>
-      ${parseErrorMarkup}
-    `;
-
-    $("pipeline-steps").innerHTML = PIPELINE_STATUSES.map(
-      (s) => `
-      <div class="pipeline-step" style="border-top:3px solid ${statusColor(s)}">
-        <div class="step-count" style="color:${statusColor(s)}">${sc[s] ?? 0}</div>
-        <div class="step-label">${s.replace(/_/g, " ")}</div>
-      </div>`,
-    ).join("");
-
-    const labels = {
-      text_queue: "Text / LLM",
-      tts_queue: "TTS Audio",
-      music_queue: "Music",
-      image_queue: "Images",
-      render_queue: "Render",
-    };
-    const qc = data.queue_counts;
-    const totalPending = Object.keys(labels).reduce(
-      (sum, key) => sum + Number(qc[key] ?? 0),
-      0,
-    );
-    $("queue-grid").innerHTML = Object.entries(labels)
-      .map(
-        ([k, label]) => `
-      <div class="queue-card">
-        <div class="queue-name">${label}</div>
-        <div class="queue-count" id="qc-${k}">${qc[k] ?? 0}</div>
-        <div class="queue-label">pending</div>
-        <button class="queue-run" id="qrun-${k}" ${(qc[k] ?? 0) === 0 ? "disabled" : ""} onclick="runQueue('${k}')">▶ Run</button>
-      </div>`,
-      )
-      .join("") +
-      `
-      <div class="queue-card">
-        <div class="queue-name">Full Pipeline</div>
-        <div class="queue-count" id="qc-all">${totalPending}</div>
-        <div class="queue-label">projects ready</div>
-        <button class="queue-run" id="qrun-all" ${totalPending === 0 ? "disabled" : ""} onclick="runQueue('all')">▶ Run All</button>
-      </div>`;
-  } catch (e) {
-    toast("Dashboard error: " + e.message, "error");
-  }
+function statusColor(status) {
+  return {
+    idea: "var(--s-idea)",
+    approved: "var(--s-approved)",
+    content_ready: "var(--s-content_ready)",
+    scenes_ready: "var(--s-scenes_ready)",
+    tts_ready: "var(--s-tts_ready)",
+    music_ready: "var(--s-music_ready)",
+    images_ready: "var(--s-images_ready)",
+    media_ready: "var(--s-media_ready)",
+    clips_ready: "var(--s-clips_ready)",
+    rendered: "var(--s-rendered)",
+    uploaded: "var(--s-uploaded)",
+    failed: "var(--s-failed)",
+  }[status] || "var(--text)";
 }
 
-async function loadBestShorts() {
-  if (!currentTopicId) return;
-
-  const wrap = $("best-shorts-wrap");
-  wrap.innerHTML = '<div class="empty">Loading best performing shorts…</div>';
-  clearBestShortsAnalysis();
-
-  try {
-    const params = new URLSearchParams({ max_results: "50" });
-    if (currentTopicId !== "all") params.set("topic_id", currentTopicId);
-
-    const data = await api("GET", `/dashboard/best-shorts?${params}`);
-    const shorts = data.shorts || [];
-    _bestShortsData = shorts;
-    saveBestShortsCache(shorts);
-    setBestShortsSummary(shorts);
-    renderBestShortsTable(shorts);
-  } catch (e) {
-    if (!hydrateBestShortsFromCache()) {
-      _bestShortsData = [];
-      $("bs-total").textContent = "—";
-      $("bs-matched").textContent = "—";
-      $("bs-unmatched").textContent = "—";
-      wrap.innerHTML = `<div class="empty">Error: ${escHtml(e.message)}</div>`;
-      return;
-    }
-    toast("Failed to refresh shorts. Loaded cached data.", "error");
-  }
+function fmtDate(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  Projects
-// ═══════════════════════════════════════════════════════════
-let _debounceT = null;
-let _projectRows = [];
-let _selectedProjectIds = new Set();
-
-const BULK_STATUS_OPTIONS = [
-  "idea",
-  "approved",
-  "content_ready",
-  "scenes_ready",
-  "tts_ready",
-  "music_ready",
-  "images_ready",
-  "media_ready",
-  "clips_ready",
-  "rendered",
-  "uploaded",
-  "failed",
-];
-
-function debounceLoadProjects() {
-  clearTimeout(_debounceT);
-  _debounceT = setTimeout(loadProjects, 280);
-}
-
-function updateProjectsSelectionUi() {
-  const selectedInView = _projectRows.filter((p) =>
-    _selectedProjectIds.has(p.id),
-  ).length;
-  const totalInView = _projectRows.length;
-  const countEl = $("bulk-selected-count");
-  const applyBtn = $("bulk-apply");
-  const actionSel = $("bulk-action");
-  const headerCheck = $("projects-check-all");
-
-  if (countEl) countEl.textContent = `${selectedInView} selected`;
-  if (applyBtn)
-    applyBtn.disabled = selectedInView === 0 || !(actionSel && actionSel.value);
-  if (headerCheck) {
-    headerCheck.checked = totalInView > 0 && selectedInView === totalInView;
-    headerCheck.indeterminate = selectedInView > 0 && selectedInView < totalInView;
-  }
-}
-
-function onBulkActionChanged() {
-  updateProjectsSelectionUi();
-}
-
-function toggleProjectSelection(e, id) {
-  e.stopPropagation();
-  if (e.target.checked) _selectedProjectIds.add(id);
-  else _selectedProjectIds.delete(id);
-  updateProjectsSelectionUi();
-}
-
-function toggleAllProjects(e) {
-  const checked = e.target.checked;
-  for (const p of _projectRows) {
-    if (checked) _selectedProjectIds.add(p.id);
-    else _selectedProjectIds.delete(p.id);
-  }
-  document.querySelectorAll("#projects-table-wrap tbody tr").forEach((row) => {
-    row.classList.toggle("is-selected", checked);
+function fmtScheduleDate(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  return d.toLocaleString([], {
+    weekday: "short",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
-  document
-    .querySelectorAll("#projects-table-wrap .row-check")
-    .forEach((cb) => (cb.checked = checked));
-  updateProjectsSelectionUi();
 }
 
-async function applyBulkAction() {
-  const action = $("bulk-action")?.value;
-  const ids = _projectRows
-    .map((p) => p.id)
-    .filter((id) => _selectedProjectIds.has(id));
-
-  if (!action) {
-    toast("Select a bulk action first", "error");
-    return;
+async function api(method, path, body) {
+  const options = { method, headers: { "Content-Type": "application/json" } };
+  if (body !== undefined) options.body = JSON.stringify(body);
+  const response = await fetch(`/api${path}`, options);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(err.detail || response.statusText);
   }
-  if (!ids.length) {
-    toast("Select at least one project", "error");
-    return;
-  }
+  if (response.status === 204) return null;
+  return response.json();
+}
 
-  if (action === "delete") {
-    const ok = confirm(
-      `Delete ${ids.length} selected project${ids.length !== 1 ? "s" : ""}? This cannot be undone.`,
-    );
-    if (!ok) return;
-    const results = await Promise.allSettled(
-      ids.map((id) => api("DELETE", `/projects/${id}`)),
-    );
-    const failed = results.filter((r) => r.status === "rejected").length;
-    const success = results.length - failed;
-    if (failed) {
-      toast(`Deleted ${success}. Failed ${failed}.`, "error");
-    } else {
-      toast(`Deleted ${success} project${success !== 1 ? "s" : ""}`, "success");
+function badge(status) {
+  return html`<span className=${`badge badge-${status}`}>${status.replace(/_/g, " ")}</span>`;
+}
+
+function ProjectActions({ project, onApprove, onReject, onRun, onRerender, onDelete }) {
+  return html`
+    <div className="td-actions" onClick=${(e) => e.stopPropagation()}>
+      ${project.status === "idea"
+        ? html`<button className="btn-sm approve" onClick=${() => onApprove(project.id)}>Approve</button>`
+        : null}
+      ${["idea", "approved"].includes(project.status)
+        ? html`<button className="btn-sm reject" onClick=${() => onReject(project.id)}>Reject</button>`
+        : null}
+      ${project.status === "approved"
+        ? html`<button className="btn-sm run" onClick=${() => onRun(project.id)}>Run</button>`
+        : null}
+      ${["rendered", "uploaded", "failed", "media_ready", "images_ready", "clips_ready"].includes(project.status)
+        ? html`<button className="btn-sm rerender" onClick=${() => onRerender(project.id)}>Re-render</button>`
+        : null}
+      <button className="btn-sm delete" onClick=${() => onDelete(project.id)}>Delete</button>
+    </div>
+  `;
+}
+
+function App() {
+  const initialTopicId = localStorage.getItem("as_topic_id");
+  const initialTopicText = localStorage.getItem("as_topic_text");
+
+  const [topics, setTopics] = useState([]);
+  const [topicInput, setTopicInput] = useState("");
+  const [topicDropdownOpen, setTopicDropdownOpen] = useState(false);
+
+  const [currentTopicId, setCurrentTopicId] = useState(initialTopicId || null);
+  const [currentTopicText, setCurrentTopicText] = useState(initialTopicText || null);
+  const [activePage, setActivePage] = useState(initialTopicId ? "dashboard" : "splash");
+
+  const [sseLabel, setSseLabel] = useState("idle");
+  const [sseMode, setSseMode] = useState("idle");
+  const [activityLog, setActivityLog] = useState([]);
+
+  const [dashboard, setDashboard] = useState(null);
+  const [queueRunning, setQueueRunning] = useState({});
+
+  const [projects, setProjects] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [bulkAction, setBulkAction] = useState("");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  const [bestShorts, setBestShorts] = useState([]);
+  const [bestShortsAnalysis, setBestShortsAnalysis] = useState("");
+  const [bestShortsAnalysisSource, setBestShortsAnalysisSource] = useState("AI");
+  const [bestShortsLoading, setBestShortsLoading] = useState(false);
+  const [bestShortsAnalyzing, setBestShortsAnalyzing] = useState(false);
+
+  const [genOpen, setGenOpen] = useState(false);
+  const [genCount, setGenCount] = useState(5);
+  const [genLoading, setGenLoading] = useState(false);
+  const [generatedIdeas, setGeneratedIdeas] = useState([]);
+
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailProject, setDetailProject] = useState(null);
+
+  const [toastState, setToastState] = useState({ msg: "", type: "success" });
+
+  const topicRef = useRef(null);
+  const refreshTimerRef = useRef(null);
+  const toastTimerRef = useRef(null);
+  const searchTimerRef = useRef(null);
+
+  const showToast = useCallback((msg, type = "success") => {
+    setToastState({ msg, type });
+    clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setToastState({ msg: "", type: "success" });
+    }, 2800);
+  }, []);
+
+  const bestShortsCacheKey = useCallback(() => {
+    return `${BEST_SHORTS_CACHE_PREFIX}:${currentTopicId || "all"}`;
+  }, [currentTopicId]);
+
+  const saveBestShortsCache = useCallback((shorts) => {
+    localStorage.setItem(bestShortsCacheKey(), JSON.stringify({
+      topic_id: currentTopicId || "all",
+      fetched_at: new Date().toISOString(),
+      shorts,
+    }));
+  }, [bestShortsCacheKey, currentTopicId]);
+
+  const readBestShortsCache = useCallback(() => {
+    const raw = localStorage.getItem(bestShortsCacheKey());
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed?.shorts) ? parsed.shorts : [];
+    } catch {
+      return [];
     }
-  } else if (action === "status") {
-    const current = $("status-filter")?.value || "";
-    const statusPrompt = prompt(
-      `Set status for ${ids.length} selected project${ids.length !== 1 ? "s" : ""}.\n\nChoose one:\n${BULK_STATUS_OPTIONS.join(", ")}`,
-      current && BULK_STATUS_OPTIONS.includes(current) ? current : BULK_STATUS_OPTIONS[0],
-    );
-    if (statusPrompt == null) return;
-    const nextStatus = statusPrompt.trim();
-    if (!BULK_STATUS_OPTIONS.includes(nextStatus)) {
-      toast("Invalid status", "error");
+  }, [bestShortsCacheKey]);
+
+  const bestSummary = useMemo(() => {
+    const matched = bestShorts.filter((item) => item.project_id).length;
+    return {
+      total: bestShorts.length,
+      matched,
+      unmatched: bestShorts.length - matched,
+    };
+  }, [bestShorts]);
+
+  const allTags = useMemo(() => {
+    return [...new Set(projects.flatMap((project) => project.tags || []))].sort();
+  }, [projects]);
+
+  const selectedInView = useMemo(() => {
+    return projects.filter((project) => selectedIds.has(project.id)).length;
+  }, [projects, selectedIds]);
+
+  const loadTopics = useCallback(async () => {
+    let loaded = [];
+    try {
+      loaded = await api("GET", "/topics");
+    } catch {
+      loaded = [];
+    }
+
+    setTopics(loaded);
+
+    if (currentTopicId && currentTopicId !== "all" && !loaded.some((topic) => topic.id === currentTopicId)) {
+      setCurrentTopicId(loaded.length ? "all" : null);
+      setCurrentTopicText(loaded.length ? "All Topics" : null);
       return;
     }
-    const results = await Promise.allSettled(
-      ids.map((id) => api("PUT", `/projects/${id}/status`, { status: nextStatus })),
-    );
-    const failed = results.filter((r) => r.status === "rejected").length;
-    const success = results.length - failed;
-    if (failed) {
-      toast(`Updated ${success}. Failed ${failed}.`, "error");
-    } else {
-      toast(
-        `Updated ${success} project${success !== 1 ? "s" : ""} to ${nextStatus}`,
-        "success",
+
+    if (!currentTopicId) {
+      if (loaded.length) {
+        setCurrentTopicId("all");
+        setCurrentTopicText("All Topics");
+      } else {
+        setCurrentTopicId(null);
+        setCurrentTopicText(null);
+      }
+      return;
+    }
+
+    if (currentTopicId === "all") {
+      setCurrentTopicText("All Topics");
+      return;
+    }
+
+    const selected = loaded.find((topic) => topic.id === currentTopicId);
+    setCurrentTopicText(selected?.topic || currentTopicText || "Topic selected");
+  }, [currentTopicId, currentTopicText]);
+
+  const loadDashboard = useCallback(async () => {
+    if (!currentTopicId) return;
+    try {
+      const params = new URLSearchParams({ limit: "200" });
+      if (currentTopicId !== "all") params.set("topic_id", currentTopicId);
+      const data = await api("GET", `/dashboard?${params.toString()}`);
+      setDashboard(data);
+    } catch (e) {
+      showToast(`Dashboard error: ${e.message}`, "error");
+    }
+  }, [currentTopicId, showToast]);
+
+  const loadProjects = useCallback(async () => {
+    if (!currentTopicId) return;
+    setProjectsLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "200" });
+      if (currentTopicId !== "all") params.set("topic_id", currentTopicId);
+      if (search.trim()) params.set("search", search.trim());
+      if (statusFilter) params.set("status", statusFilter);
+      const data = await api("GET", `/projects?${params.toString()}`);
+      const filtered = tagFilter
+        ? data.filter((project) => (project.tags || []).includes(tagFilter))
+        : data;
+      setProjects(filtered);
+      setSelectedIds((prev) => new Set([...prev].filter((id) => filtered.some((p) => p.id === id))));
+    } catch (e) {
+      setProjects([]);
+      setSelectedIds(new Set());
+      showToast(e.message, "error");
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, [currentTopicId, search, statusFilter, tagFilter, showToast]);
+
+  const loadBestShorts = useCallback(async () => {
+    if (!currentTopicId) return;
+    setBestShortsLoading(true);
+    setBestShortsAnalysis("");
+    try {
+      const params = new URLSearchParams({ max_results: "50" });
+      if (currentTopicId !== "all") params.set("topic_id", currentTopicId);
+      const data = await api("GET", `/dashboard/best-shorts?${params.toString()}`);
+      const shorts = data.shorts || [];
+      setBestShorts(shorts);
+      saveBestShortsCache(shorts);
+    } catch {
+      const cached = readBestShortsCache();
+      if (cached.length) {
+        setBestShorts(cached);
+        showToast("Failed to refresh shorts. Loaded cached data.", "error");
+      } else {
+        setBestShorts([]);
+        showToast("Failed to load shorts.", "error");
+      }
+    } finally {
+      setBestShortsLoading(false);
+    }
+  }, [currentTopicId, readBestShortsCache, saveBestShortsCache, showToast]);
+
+  const openDetail = useCallback(async (id) => {
+    try {
+      const project = await api("GET", `/projects/${id}`);
+      setDetailProject(project);
+      setDetailOpen(true);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [showToast]);
+
+  const refreshVisibleData = useCallback(() => {
+    loadDashboard();
+    if (activePage === "projects") loadProjects();
+    if (detailProject?.id) openDetail(detailProject.id);
+  }, [activePage, detailProject?.id, loadDashboard, loadProjects, openDetail]);
+
+  const runQueue = useCallback(async (queue) => {
+    setQueueRunning((prev) => ({ ...prev, [queue]: true }));
+    try {
+      const params = new URLSearchParams({ queue });
+      if (currentTopicId && currentTopicId !== "all") params.set("topic_id", currentTopicId);
+      const result = await api("POST", `/dashboard/run-queue?${params.toString()}`);
+      if (queue === "all") {
+        showToast(`${result.queued} project(s) queued for full pipeline`, "success");
+      } else {
+        showToast(`${result.queued} project(s) queued for ${queue.replace(/_/g, " ")}`, "success");
+      }
+      loadDashboard();
+    } catch (e) {
+      showToast(e.message, "error");
+    } finally {
+      setQueueRunning((prev) => ({ ...prev, [queue]: false }));
+    }
+  }, [currentTopicId, loadDashboard, showToast]);
+
+  const approveProject = useCallback(async (id) => {
+    try {
+      await api("POST", `/projects/${id}/approve`);
+      showToast("Approved", "success");
+      refreshVisibleData();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [refreshVisibleData, showToast]);
+
+  const rejectProject = useCallback(async (id) => {
+    if (!window.confirm("Reject this project?")) return;
+    try {
+      await api("POST", `/projects/${id}/reject`);
+      showToast("Rejected", "success");
+      refreshVisibleData();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [refreshVisibleData, showToast]);
+
+  const runPipeline = useCallback(async (id) => {
+    try {
+      await api("POST", `/projects/${id}/run`);
+      showToast("Pipeline started", "success");
+      refreshVisibleData();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [refreshVisibleData, showToast]);
+
+  const reRender = useCallback(async (id) => {
+    if (!window.confirm("Force re-render this project?")) return;
+    try {
+      await api("POST", `/projects/${id}/render`);
+      showToast("Re-render started", "success");
+      refreshVisibleData();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [refreshVisibleData, showToast]);
+
+  const deleteProject = useCallback(async (id) => {
+    if (!window.confirm("Delete this project permanently?")) return;
+    try {
+      await api("DELETE", `/projects/${id}`);
+      showToast("Deleted", "success");
+      if (detailProject?.id === id) {
+        setDetailOpen(false);
+        setDetailProject(null);
+      }
+      refreshVisibleData();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [detailProject?.id, refreshVisibleData, showToast]);
+
+  const uploadToYouTube = useCallback(async (id) => {
+    try {
+      await api("POST", `/projects/${id}/upload`);
+      showToast("Upload to YouTube started", "success");
+      refreshVisibleData();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [refreshVisibleData, showToast]);
+
+  const openProjectFolder = useCallback(async (id) => {
+    try {
+      await api("POST", `/projects/${id}/open-folder`);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [showToast]);
+
+  const setProjectStatus = useCallback(async (id, status) => {
+    try {
+      await api("PUT", `/projects/${id}/status`, { status });
+      showToast(`Status set to ${status}`, "success");
+      refreshVisibleData();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [refreshVisibleData, showToast]);
+
+  const rerunMusic = useCallback(async (id) => {
+    try {
+      await api("POST", `/projects/${id}/rerun/music`);
+      showToast("Music regeneration queued", "success");
+      setTimeout(() => openDetail(id), 700);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [openDetail, showToast]);
+
+  const rerunAllImages = useCallback(async (id) => {
+    if (!window.confirm("Regenerate all scene images?")) return;
+    try {
+      await api("POST", `/projects/${id}/rerun/images`);
+      showToast("All images queued for regeneration", "success");
+      setTimeout(() => openDetail(id), 700);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [openDetail, showToast]);
+
+  const rerunSceneImage = useCallback(async (id, sceneIndex) => {
+    try {
+      await api("POST", `/projects/${id}/scenes/${sceneIndex}/rerun/image`);
+      showToast(`Scene ${sceneIndex + 1} image queued`, "success");
+      setTimeout(() => openDetail(id), 700);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [openDetail, showToast]);
+
+  const addTopic = useCallback(async () => {
+    const text = topicInput.trim();
+    if (!text) return;
+    try {
+      const created = await api("POST", "/topics", { topic: text });
+      setTopics((prev) => [...prev, created]);
+      setTopicInput("");
+      setCurrentTopicId(created.id);
+      setCurrentTopicText(created.topic);
+      setTopicDropdownOpen(false);
+      showToast("Topic created", "success");
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [topicInput, showToast]);
+
+  const deleteTopic = useCallback(async (id) => {
+    const topic = topics.find((item) => item.id === id);
+    if (!window.confirm(`Delete topic \"${topic?.topic || ""}\"? This fails if it has projects.`)) return;
+    try {
+      await api("DELETE", `/topics/${id}`);
+      setTopics((prev) => prev.filter((item) => item.id !== id));
+      if (currentTopicId === id) {
+        const remaining = topics.filter((item) => item.id !== id);
+        setCurrentTopicId(remaining.length ? "all" : null);
+        setCurrentTopicText(remaining.length ? "All Topics" : null);
+      }
+      showToast("Topic deleted", "success");
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [currentTopicId, showToast, topics]);
+
+  const submitGenerate = useCallback(async () => {
+    if (!currentTopicId || currentTopicId === "all") return;
+    setGenLoading(true);
+    setGeneratedIdeas([]);
+    try {
+      const ideas = await api("POST", "/ideas/generate", {
+        topic_id: currentTopicId,
+        count: genCount,
+      });
+      setGeneratedIdeas(ideas);
+      showToast(`${ideas.length} ideas generated`, "success");
+      loadDashboard();
+      if (activePage === "projects") loadProjects();
+    } catch (e) {
+      showToast(e.message, "error");
+    } finally {
+      setGenLoading(false);
+    }
+  }, [activePage, currentTopicId, genCount, loadDashboard, loadProjects, showToast]);
+
+  const analyzeBestShorts = useCallback(async () => {
+    const shorts = bestShorts.length ? bestShorts : readBestShortsCache();
+    if (!shorts.length) {
+      showToast("Fetch data first so Analyze has content", "error");
+      return;
+    }
+
+    setBestShortsAnalyzing(true);
+    try {
+      const payload = {
+        shorts: shorts.slice(0, 25).map((item) => ({
+          title: item.title || "Untitled short",
+          views: Number(item.views || 0),
+        })),
+      };
+      const response = await api("POST", "/dashboard/best-shorts/analyze", payload);
+      if (!response?.analysis) throw new Error("No analysis response");
+      setBestShortsAnalysis(response.analysis);
+      setBestShortsAnalysisSource("AI");
+    } catch {
+      const sorted = [...shorts].sort((a, b) => (b.views || 0) - (a.views || 0));
+      const top = sorted.slice(0, Math.min(5, sorted.length));
+      const totalViews = sorted.reduce((sum, item) => sum + Number(item.views || 0), 0);
+      const avgViews = Math.round(totalViews / sorted.length);
+      const matched = sorted.filter((item) => item.project_id).length;
+      const localSummary = [
+        `Total shorts: ${sorted.length}`,
+        `Average views: ${avgViews.toLocaleString()}`,
+        `Matched to project: ${matched}/${sorted.length}`,
+        "",
+        "Top performers:",
+        ...top.map((item, idx) => `${idx + 1}. ${item.title || "Untitled short"} (${Number(item.views || 0).toLocaleString()} views)`),
+      ].join("\n");
+      setBestShortsAnalysis(localSummary);
+      setBestShortsAnalysisSource("Local summary");
+      showToast("AI analysis unavailable. Showing local summary.", "error");
+    } finally {
+      setBestShortsAnalyzing(false);
+    }
+  }, [bestShorts, readBestShortsCache, showToast]);
+
+  const applyBulkAction = useCallback(async () => {
+    const ids = projects.map((project) => project.id).filter((id) => selectedIds.has(id));
+    if (!bulkAction) {
+      showToast("Select a bulk action first", "error");
+      return;
+    }
+    if (!ids.length) {
+      showToast("Select at least one project", "error");
+      return;
+    }
+
+    if (bulkAction === "delete") {
+      if (!window.confirm(`Delete ${ids.length} selected project(s)?`)) return;
+      const results = await Promise.allSettled(ids.map((id) => api("DELETE", `/projects/${id}`)));
+      const failed = results.filter((result) => result.status === "rejected").length;
+      const success = results.length - failed;
+      showToast(failed ? `Deleted ${success}. Failed ${failed}.` : `Deleted ${success} project(s)`, failed ? "error" : "success");
+    }
+
+    if (bulkAction === "status") {
+      const statusPrompt = window.prompt(
+        `Set status for ${ids.length} project(s):\n${BULK_STATUS_OPTIONS.join(", ")}`,
+        statusFilter && BULK_STATUS_OPTIONS.includes(statusFilter) ? statusFilter : BULK_STATUS_OPTIONS[0],
+      );
+      if (statusPrompt == null) return;
+      const nextStatus = statusPrompt.trim();
+      if (!BULK_STATUS_OPTIONS.includes(nextStatus)) {
+        showToast("Invalid status", "error");
+        return;
+      }
+      const results = await Promise.allSettled(ids.map((id) => api("PUT", `/projects/${id}/status`, { status: nextStatus })));
+      const failed = results.filter((result) => result.status === "rejected").length;
+      const success = results.length - failed;
+      showToast(
+        failed ? `Updated ${success}. Failed ${failed}.` : `Updated ${success} project(s) to ${nextStatus}`,
+        failed ? "error" : "success",
       );
     }
-  }
 
-  // Keep selection only for rows still visible after refresh.
-  await loadProjects();
-  loadDashboard();
-}
+    setSelectedIds(new Set());
+    loadProjects();
+    loadDashboard();
+  }, [bulkAction, loadDashboard, loadProjects, projects, selectedIds, showToast, statusFilter]);
 
-async function loadProjects() {
-  if (!currentTopicId) return;
-  const search = $("search-input").value.trim();
-  const tagFilter = $("tag-filter")?.value || "";
-  const status = $("status-filter").value;
-  const params = new URLSearchParams({ limit: "200" });
-  if (currentTopicId !== "all") params.set("topic_id", currentTopicId);
-  if (search) params.set("search", search);
-  if (status) params.set("status", status);
-  const wrap = $("projects-table-wrap");
-  try {
-    const allProjects = await api("GET", `/projects?${params}`);
-    // Rebuild tag select with unique tags from the full result set
-    const tagSel = $("tag-filter");
-    if (tagSel) {
-      const current = tagSel.value;
-      const allTags = [...new Set(allProjects.flatMap((p) => p.tags))].sort();
-      tagSel.innerHTML =
-        '<option value="">All tags</option>' +
-        allTags
-          .map(
-            (t) =>
-              `<option value="${escHtml(t)}"${t === current ? " selected" : ""}>${escHtml(t)}</option>`,
-          )
-          .join("");
+  useEffect(() => {
+    loadTopics();
+  }, [loadTopics]);
+
+  useEffect(() => {
+    if (currentTopicId) {
+      localStorage.setItem("as_topic_id", currentTopicId);
+    } else {
+      localStorage.removeItem("as_topic_id");
     }
-    const projects = tagFilter
-      ? allProjects.filter((p) => p.tags.includes(tagFilter))
-      : allProjects;
-    _projectRows = projects;
-    const visibleIds = new Set(projects.map((p) => p.id));
-    _selectedProjectIds = new Set(
-      [..._selectedProjectIds].filter((id) => visibleIds.has(id)),
-    );
-    if (!projects.length) {
-      wrap.innerHTML =
-        '<div class="empty">No projects yet — Generate Ideas to get started.</div>';
-      updateProjectsSelectionUi();
+
+    if (currentTopicText) {
+      localStorage.setItem("as_topic_text", currentTopicText);
+    } else {
+      localStorage.removeItem("as_topic_text");
+    }
+  }, [currentTopicId, currentTopicText]);
+
+  useEffect(() => {
+    const onClick = (event) => {
+      if (topicRef.current && !topicRef.current.contains(event.target)) {
+        setTopicDropdownOpen(false);
+      }
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      if (genOpen) setGenOpen(false);
+      else if (detailOpen) {
+        setDetailOpen(false);
+        setDetailProject(null);
+      } else {
+        setTopicDropdownOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [detailOpen, genOpen]);
+
+  useEffect(() => {
+    if (!currentTopicId) {
+      setActivePage("splash");
       return;
     }
-    wrap.innerHTML = `
-      <table>
-        <thead>
-          <tr>
-            <th class="th-check"><input id="projects-check-all" class="header-check" type="checkbox" onchange="toggleAllProjects(event)" aria-label="Select all projects" /></th>
-            <th>Title</th>
-            <th>Status</th>
-            <th>Tags</th>
-            <th>Created</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>${projects
-          .map(
-            (p) => `
-          <tr class="${_selectedProjectIds.has(p.id) ? "is-selected" : ""}" onclick="openDetail('${p.id}')">
-            <td class="td-check" onclick="event.stopPropagation()">
+    if (activePage === "splash") setActivePage("dashboard");
+  }, [activePage, currentTopicId]);
+
+  useEffect(() => {
+    if (!currentTopicId || activePage !== "dashboard") return;
+    loadDashboard();
+  }, [activePage, currentTopicId, loadDashboard]);
+
+  useEffect(() => {
+    if (!currentTopicId || activePage !== "projects") return;
+    clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      loadProjects();
+    }, 280);
+    return () => clearTimeout(searchTimerRef.current);
+  }, [activePage, currentTopicId, loadProjects, search, statusFilter, tagFilter]);
+
+  useEffect(() => {
+    if (!currentTopicId || activePage !== "best-shorts") return;
+    setBestShorts(readBestShortsCache());
+    setBestShortsAnalysis("");
+  }, [activePage, currentTopicId, readBestShortsCache]);
+
+  useEffect(() => {
+    if (!currentTopicId) return undefined;
+
+    let source = null;
+    let retryTimer = null;
+
+    const connect = () => {
+      source = new EventSource("/api/events");
+
+      source.onopen = () => {
+        setSseMode("idle");
+        setSseLabel("connected");
+      };
+
+      source.onmessage = (event) => {
+        let data;
+        try {
+          data = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+
+        if (data.type === "status") {
+          const active = Number(data.active || 0);
+          setSseMode(active > 0 ? "running" : "idle");
+          setSseLabel(active > 0 ? `running (${active})` : "idle");
+          return;
+        }
+
+        if (data.type === "activity") {
+          setActivityLog((prev) => {
+            const next = [
+              {
+                ts: data.ts ? new Date(data.ts * 1000) : new Date(),
+                msg: data.msg || "",
+                level: data.level || "info",
+                project_id: data.project_id || null,
+              },
+              ...prev,
+            ];
+            return next.slice(0, ACTIVITY_MAX);
+          });
+          return;
+        }
+
+        if (data.type === "project_update") {
+          clearTimeout(refreshTimerRef.current);
+          refreshTimerRef.current = setTimeout(() => {
+            loadDashboard();
+            if (activePage === "projects") loadProjects();
+            if (detailProject?.id === data.project_id) openDetail(data.project_id);
+          }, 600);
+        }
+      };
+
+      source.onerror = () => {
+        setSseMode("error");
+        setSseLabel("disconnected");
+        source.close();
+        retryTimer = setTimeout(connect, 4000);
+      };
+    };
+
+    connect();
+
+    return () => {
+      clearTimeout(retryTimer);
+      if (source) source.close();
+    };
+  }, [activePage, currentTopicId, detailProject?.id, loadDashboard, loadProjects, openDetail]);
+
+  const queueLabels = {
+    text_queue: "Text / LLM",
+    tts_queue: "TTS Audio",
+    music_queue: "Music",
+    image_queue: "Images",
+    render_queue: "Render",
+  };
+
+  const queueCounts = dashboard?.queue_counts || {};
+  const statusCounts = dashboard?.status_counts || {};
+  const schedule = dashboard?.scheduler || {};
+  const totalPending = Object.keys(queueLabels).reduce((sum, key) => sum + Number(queueCounts[key] ?? 0), 0);
+
+  const hasTopic = Boolean(currentTopicId);
+  const canGenerate = hasTopic && currentTopicId !== "all";
+
+  const detailMeta = detailProject?.metadata || {};
+  const scenes = detailMeta.scenes || [];
+
+  return html`
+    <div>
+      <nav>
+        <div className="brand">auto<span>-streams</span></div>
+
+        <div className="topic-ws" ref=${topicRef}>
+          <button
+            className=${`topic-ws-btn ${hasTopic ? "" : "no-topic"}`}
+            onClick=${(event) => {
+              event.stopPropagation();
+              setTopicDropdownOpen((open) => !open);
+            }}
+          >
+            <span className="label">${hasTopic ? currentTopicText || "Topic selected" : "Select a topic..."}</span>
+            <span className="chevron">v</span>
+          </button>
+
+          <div className=${`topic-dropdown ${topicDropdownOpen ? "open" : ""}`}>
+            <div className="topic-dropdown-header">Workspace</div>
+            <div className="topic-list">
+              ${topics.length
+                ? html`
+                    <div
+                      className=${`topic-item ${currentTopicId === "all" ? "selected" : ""}`}
+                      onClick=${() => {
+                        setCurrentTopicId("all");
+                        setCurrentTopicText("All Topics");
+                        setTopicDropdownOpen(false);
+                      }}
+                    >
+                      <span className="topic-text" title="All Topics">All Topics</span>
+                    </div>
+                    ${topics.map((topic) => html`
+                      <div
+                        key=${topic.id}
+                        className=${`topic-item ${topic.id === currentTopicId ? "selected" : ""}`}
+                        onClick=${() => {
+                          setCurrentTopicId(topic.id);
+                          setCurrentTopicText(topic.topic);
+                          setTopicDropdownOpen(false);
+                        }}
+                      >
+                        <span className="topic-text" title=${topic.topic}>${topic.topic}</span>
+                        <button className="topic-del" title="Delete" onClick=${(e) => {
+                          e.stopPropagation();
+                          deleteTopic(topic.id);
+                        }}>x</button>
+                      </div>
+                    `)}
+                  `
+                : html`<div className="topic-empty">No topics yet. Add one below.</div>`}
+            </div>
+            <div className="topic-add-row">
               <input
-                class="row-check"
-                type="checkbox"
-                aria-label="Select project ${escHtml(p.title)}"
-                ${_selectedProjectIds.has(p.id) ? "checked" : ""}
-                onchange="toggleProjectSelection(event,'${p.id}')"
+                className="topic-add-input"
+                value=${topicInput}
+                placeholder="New one-sentence topic..."
+                onInput=${(e) => setTopicInput(e.target.value)}
+                onKeyDown=${(e) => {
+                  if (e.key === "Enter") addTopic();
+                }}
               />
-            </td>
-            <td class="td-title">${escHtml(p.title)}</td>
-            <td>${badge(p.status)}</td>
-            <td class="td-tags">${p.tags.map((t) => `<span class="tag">${escHtml(t)}</span>`).join("") || '<span class="text-muted">—</span>'}</td>
-            <td class="td-date">${fmtDate(p.created_at)}</td>
-            <td class="td-actions" onclick="event.stopPropagation()">
-              ${p.status === "idea" ? `<button class="btn-sm approve" onclick="approveProject('${p.id}')">Approve</button>` : ""}
-              ${["idea", "approved"].includes(p.status) ? `<button class="btn-sm reject" onclick="rejectProject('${p.id}')">Reject</button>` : ""}
-              ${p.status === "approved" ? `<button class="btn-sm run" onclick="runPipeline('${p.id}')">▶ Run</button>` : ""}
-              ${["rendered", "uploaded", "failed", "media_ready", "images_ready", "clips_ready"].includes(p.status) ? `<button class="btn-sm rerender" onclick="reRender('${p.id}')">↺ Re-render</button>` : ""}
-              <button class="btn-sm delete" onclick="deleteProject('${p.id}')">Delete</button>
-            </td>
-          </tr>`,
-          )
-          .join("")}
-        </tbody>
-      </table>`;
-    updateProjectsSelectionUi();
-  } catch (e) {
-    _projectRows = [];
-    _selectedProjectIds.clear();
-    updateProjectsSelectionUi();
-    wrap.innerHTML = `<div class="empty">Error: ${escHtml(e.message)}</div>`;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Generate Ideas modal
-// ═══════════════════════════════════════════════════════════
-function selectCount(n) {
-  selectedCount = n;
-  document.querySelectorAll(".count-option").forEach((el) => {
-    el.classList.toggle("selected", parseInt(el.textContent) === n);
-  });
-}
-
-function openGenerateModal() {
-  if (!currentTopicId) return;
-  $("gen-modal-sub").textContent = `Topic: ${currentTopicText}`;
-  $("gen-results").innerHTML = "";
-  $("gen-count-field").style.display = "";
-  $("gen-actions").innerHTML = `
-    <button class="btn-secondary" onclick="closeGenerateModal()">Cancel</button>
-    <button class="btn-primary" onclick="submitGenerate()"><span>Generate</span></button>`;
-  $("gen-modal").classList.add("open");
-}
-function closeGenerateModal() {
-  $("gen-modal").classList.remove("open");
-}
-
-async function submitGenerate() {
-  $("gen-count-field").style.display = "none";
-  $("gen-results").innerHTML = "";
-  $("gen-actions").innerHTML = `
-    <button class="btn-secondary" disabled>Cancel</button>
-    <button class="btn-primary" disabled><div class="spinner"></div><span>Generating…</span></button>`;
-  try {
-    const ideas = await api("POST", "/ideas/generate", {
-      topic_id: currentTopicId,
-      count: selectedCount,
-    });
-    $("gen-results").innerHTML = `
-      <div style="font-size:.8rem;color:var(--success);margin-bottom:.5rem;">✓ ${ideas.length} idea${ideas.length !== 1 ? "s" : ""} created</div>
-      <div class="generated-list">${ideas
-        .map(
-          (p) => `
-        <div class="gen-item">
-          <div class="gen-title">${escHtml(p.title)}</div>
-          ${p.metadata?.summary ? `<div class="gen-summary">${escHtml(p.metadata.summary)}</div>` : ""}
-        </div>`,
-        )
-        .join("")}
-      </div>`;
-    $("gen-actions").innerHTML =
-      `<button class="btn-primary" onclick="closeGenerateModal()">Done</button>`;
-    loadDashboard();
-    if (activePage === "projects") loadProjects();
-    toast(`${ideas.length} ideas generated`, "success");
-  } catch (e) {
-    $("gen-results").innerHTML =
-      `<div style="color:var(--danger);font-size:.85rem;margin-bottom:.5rem;">Error: ${escHtml(e.message)}</div>`;
-    $("gen-count-field").style.display = "";
-    $("gen-actions").innerHTML = `
-      <button class="btn-secondary" onclick="closeGenerateModal()">Cancel</button>
-      <button class="btn-primary" onclick="submitGenerate()"><span>Retry</span></button>`;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Project actions
-// ═══════════════════════════════════════════════════════════
-async function runQueue(queue) {
-  const btn = $(`qrun-${queue}`);
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "…";
-  }
-  try {
-    const params = new URLSearchParams({ queue });
-    if (currentTopicId && currentTopicId !== 'all') params.set("topic_id", currentTopicId);
-    const res = await api("POST", `/dashboard/run-queue?${params}`);
-    const msg =
-      queue === "all"
-        ? `${res.queued} project${res.queued !== 1 ? "s" : ""} queued for full pipeline`
-        : `${res.queued} project${res.queued !== 1 ? "s" : ""} queued for ${queue.replace(/_/g, " ")}`;
-    toast(msg, "success");
-    loadDashboard();
-  } catch (e) {
-    toast(e.message, "error");
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = queue === "all" ? "▶ Run All" : "▶ Run";
-    }
-  }
-}
-
-async function runPipeline(id) {
-  const btn = document.querySelector(`[id="run-btn-${id}"]`);
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "…";
-  }
-  try {
-    await api("POST", `/projects/${id}/run`);
-    toast("Pipeline started", "success");
-    loadDashboard();
-    if (activePage === "projects") loadProjects();
-    if (_detailId === id) openDetail(id);
-  } catch (e) {
-    toast(e.message, "error");
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "▶ Run Pipeline";
-    }
-  }
-}
-
-async function approveProject(id) {
-  try {
-    await api("POST", `/projects/${id}/approve`);
-    toast("Approved", "success");
-    loadProjects();
-    loadDashboard();
-    if (_detailId === id) openDetail(id);
-  } catch (e) {
-    toast(e.message, "error");
-  }
-}
-async function rejectProject(id) {
-  if (!confirm("Reject this project?")) return;
-  try {
-    await api("POST", `/projects/${id}/reject`);
-    toast("Rejected", "success");
-    loadProjects();
-    loadDashboard();
-    if (_detailId === id) openDetail(id);
-  } catch (e) {
-    toast(e.message, "error");
-  }
-}
-async function reRender(id) {
-  if (
-    !confirm(
-      "Force re-render this project? The render stage will run from the beginning.",
-    )
-  )
-    return;
-  try {
-    await api("POST", `/projects/${id}/render`);
-    toast("Re-render started", "success");
-    loadProjects();
-    loadDashboard();
-    if (_detailId === id) openDetail(id);
-  } catch (e) {
-    toast(e.message, "error");
-  }
-}
-
-async function uploadToYouTube(id) {
-  const btn = document.querySelector(`[id="upload-btn-${id}"]`);
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "⏳ Uploading…";
-  }
-  try {
-    await api("POST", `/projects/${id}/upload`);
-    toast("Upload to YouTube started", "success");
-    loadProjects();
-    loadDashboard();
-    if (_detailId === id) openDetail(id);
-  } catch (e) {
-    toast(e.message, "error");
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "⬆ Upload to YouTube";
-    }
-  }
-}
-
-async function openProjectFolder(id) {
-  try {
-    await api("POST", `/projects/${id}/open-folder`);
-  } catch (e) {
-    toast(e.message, "error");
-  }
-}
-
-async function rerunSceneImage(id, sceneIndex, btn) {
-  btn.disabled = true;
-  btn.textContent = "…";
-  try {
-    await api("POST", `/projects/${id}/scenes/${sceneIndex}/rerun/image`);
-    toast(`Scene ${sceneIndex + 1} image queued`, "success");
-    setTimeout(() => openDetail(id), 800);
-  } catch (e) {
-    toast(e.message, "error");
-    btn.disabled = false;
-    btn.textContent = "↺ Image";
-  }
-}
-
-async function rerunMusic(id, btn) {
-  btn.disabled = true;
-  btn.textContent = "…";
-  try {
-    await api("POST", `/projects/${id}/rerun/music`);
-    toast("Music regeneration queued", "success");
-    setTimeout(() => openDetail(id), 800);
-  } catch (e) {
-    toast(e.message, "error");
-    btn.disabled = false;
-    btn.textContent = "↺ Regenerate Music";
-  }
-}
-
-async function rerunAllImages(id, btn) {
-  if (
-    !confirm(
-      "Regenerate ALL scene images? This will overwrite every existing image.",
-    )
-  )
-    return;
-  btn.disabled = true;
-  btn.textContent = "…";
-  try {
-    await api("POST", `/projects/${id}/rerun/images`);
-    toast("All images queued for regeneration", "success");
-    setTimeout(() => openDetail(id), 800);
-  } catch (e) {
-    toast(e.message, "error");
-    btn.disabled = false;
-    btn.textContent = "↺ All Images";
-  }
-}
-
-async function setProjectStatus(id, status) {
-  try {
-    await api("PUT", `/projects/${id}/status`, { status });
-    toast(`Status set to ${status}`, "success");
-    loadProjects();
-    loadDashboard();
-    if (_detailId === id) openDetail(id);
-  } catch (e) {
-    toast(e.message, "error");
-  }
-}
-async function deleteProject(id) {
-  if (!confirm("Delete this project permanently?")) return;
-  try {
-    await api("DELETE", `/projects/${id}`);
-    toast("Deleted", "success");
-    loadProjects();
-    loadDashboard();
-    if (_detailId === id) closeDetail();
-  } catch (e) {
-    toast(e.message, "error");
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Detail panel
-// ═══════════════════════════════════════════════════════════
-let _detailId = null;
-let _detailData = null;
-
-async function openDetail(id) {
-  _detailId = id;
-  try {
-    const p = await api("GET", `/projects/${id}`);
-    renderDetail(p);
-    $("detail-overlay").classList.add("open");
-    $("detail-panel").classList.add("open");
-  } catch (e) {
-    toast(e.message, "error");
-  }
-}
-function closeDetail() {
-  _detailId = null;
-  _detailData = null;
-  $("detail-overlay").classList.remove("open");
-  $("detail-panel").classList.remove("open");
-}
-function renderDetail(p) {
-  _detailData = p;
-  $("dp-title").textContent = p.title;
-  $("dp-meta").innerHTML =
-    `${badge(p.status)} &nbsp;·&nbsp; <span class="text-muted">${escHtml(p.id)}</span> &nbsp;·&nbsp; ${fmtDate(p.created_at)}`;
-  let actions = `<button class="btn-sm edit" onclick="toggleEditMode()">✎ Edit</button>`;
-  if (p.status === "idea")
-    actions += `<button class="btn-sm approve" onclick="approveProject('${p.id}')">Approve</button>`;
-  if (["idea", "approved"].includes(p.status))
-    actions += `<button class="btn-sm reject" onclick="rejectProject('${p.id}')">Reject</button>`;
-  if (p.status === "approved")
-    actions += `<button class="btn-sm run" id="run-btn-${p.id}" onclick="runPipeline('${p.id}')">▶ Run Pipeline</button>`;
-  if (
-    [
-      "rendered",
-      "failed",
-      "media_ready",
-      "images_ready",
-      "clips_ready",
-    ].includes(p.status)
-  )
-    actions += `<button class="btn-sm rerender" onclick="reRender('${p.id}')">↺ Re-render</button>`;
-  if (p.status === "rendered")
-    actions += `<button class="btn-sm upload" id="upload-btn-${p.id}" onclick="uploadToYouTube('${p.id}')">⬆ Upload to YouTube</button>`;
-  actions += `<button class="btn-sm" title="Open project folder in Explorer" onclick="openProjectFolder('${p.id}')">📂 Open Folder</button>`;
-  const allStatuses = [
-    "idea",
-    "approved",
-    "content_ready",
-    "scenes_ready",
-    "tts_ready",
-    "music_ready",
-    "images_ready",
-    "media_ready",
-    "clips_ready",
-    "rendered",
-    "uploaded",
-    "failed",
-  ];
-  actions += `<select class="select-filter status-jump" onchange="setProjectStatus('${p.id}', this.value)" title="Set status">${allStatuses.map((s) => `<option value="${s}"${s === p.status ? " selected" : ""}>${s.replace(/_/g, " ")}</option>`).join("")}</select>`;
-  actions += `<button class="btn-sm delete" onclick="deleteProject('${p.id}')">Delete</button>`;
-  $("dp-actions").innerHTML = actions;
-
-  const meta = p.metadata || {};
-  const scenes = meta.scenes || [];
-  const metaFields = [
-    ["Error", meta.error, "meta-item-error"],
-    ["Summary", meta.summary],
-    ["Transcript", meta.transcript],
-    ["Narrator", meta.narrator],
-    ["Music prompt", meta.music],
-    ["Visual guide", meta.visual_guide],
-    ["Duration", meta.duration != null ? `${meta.duration}s` : null],
-    ["Word count", meta.word_count],
-    [
-      "Uploaded at",
-      meta.uploaded_at ? new Date(meta.uploaded_at).toLocaleString() : null,
-    ],
-  ].filter(([, v]) => v != null);
-
-  let body = "";
-  const videoFile = meta.video_path
-    ? meta.video_path.replace(/\\/g, "/").split("/").pop()
-    : null;
-  if (videoFile) {
-    const videoSrc = `/api/projects/${p.id}/video/${encodeURIComponent(videoFile)}`;
-    body += `<div class="detail-section">
-      <div class="detail-section-title">Preview</div>
-      <div class="video-preview">
-        <video controls preload="metadata" src="${videoSrc}"></video>
-      </div>
-    </div>`;
-  }
-  if (metaFields.length) {
-    body += `<div class="detail-section">
-      <div class="detail-section-title">Metadata</div>
-      <div class="meta-grid">${metaFields
-        .map(
-          ([k, v, classNames]) => `
-        <div class="meta-item${(() => {
-            const safeClassNames = sanitizeClassNames(classNames);
-            return safeClassNames ? ` ${safeClassNames}` : "";
-          })()}">
-          <div class="meta-key">${escHtml(k)}</div>
-          <div class="meta-val pre">${escHtml(String(v))}</div>
-        </div>`,
-        )
-        .join("")}
-      </div></div>`;
-  }
-  if (p.tags.length) {
-    body += `<div class="detail-section">
-      <div class="detail-section-title">Tags</div>
-      <div class="td-tags">${p.tags.map((t) => `<span class="tag">${escHtml(t)}</span>`).join("")}</div>
-    </div>`;
-  }
-  const mediaLinks = [
-    ["Music", meta.music_url],
-    ["Narration", meta.audio_url],
-    ["Video", meta.video_url],
-    ["Thumbnail", meta.thumbnail_url],
-    ["YouTube Short", meta.youtube_url],
-  ].filter(([, v]) => v);
-  if (mediaLinks.length) {
-    body += `<div class="detail-section">
-      <div class="detail-section-title">Media</div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;">${mediaLinks.map(([l, u]) => `<a class="asset-chip" href="${escHtml(u)}" target="_blank">${escHtml(l)}</a>`).join("")}</div>
-    </div>`;
-  }
-  const audioBase = `/api/projects/${p.id}/audio`;
-  const fnFromPath = (path) =>
-    path ? path.replace(/\\/g, "/").split("/").pop() : null;
-  const hasScenes =
-    scenes.length > 0 && (scenes[0].audio_path || scenes[0].image_path);
-  if (scenes.length) {
-    body += `<div class="detail-section">
-      <div class="detail-section-title-row">
-        <span class="detail-section-title">Scenes (${scenes.length})</span>
-        <span class="section-title-actions">
-          <button class="btn-sm rerun-asset" onclick="rerunAllImages('${p.id}',this)">↺ All Images</button>
-        </span>
-      </div>
-      <div class="scenes-list">${scenes
-        .map((s, i) => {
-          const assets = [
-            s.audio_url && "Audio",
-            s.image_url && "Image",
-            s.clip_url && "Clip",
-          ].filter(Boolean);
-          const audioFile = fnFromPath(s.audio_path);
-          const imageFile = fnFromPath(s.image_path);
-          const imageBase = `/api/projects/${p.id}/image`;
-          return `<div class="scene-card">
-          ${imageFile ? `<div class="scene-thumb"><img loading="lazy" src="${imageBase}/${encodeURIComponent(imageFile)}" alt="Scene ${i + 1}"></div>` : ""}
-          <div class="scene-body">
-            <div class="scene-num">Scene ${i + 1}${s.duration != null ? ` · ${s.duration}s` : ""}</div>
-            <div class="scene-voiceover">${escHtml(s.voiceover || "")}</div>
-            ${s.image_prompt ? `<div class="scene-prompt">${escHtml(s.image_prompt)}</div>` : ""}
-            ${audioFile ? `<div class="scene-audio"><audio controls preload="none" src="${audioBase}/${encodeURIComponent(audioFile)}"></audio></div>` : ""}
-            ${assets.length ? `<div class="scene-assets">${assets.map((a) => `<span class="asset-chip">${a}</span>`).join("")}</div>` : ""}
-            <div class="scene-rerun-actions">
-              ${imageFile || s.image_prompt ? `<button class="btn-sm rerun-asset" onclick="rerunSceneImage('${p.id}',${i},this)">↺ Image</button>` : ""}
+              <button className="topic-add-btn" onClick=${addTopic}>Add</button>
             </div>
           </div>
-        </div>`;
-        })
-        .join("")}</div></div>`;
-  }
-  const musicFile = fnFromPath(meta.music_path);
-  if (musicFile) {
-    body += `<div class="detail-section">
-      <div class="detail-section-title">Background Music</div>
-      <div class="music-audio"><audio controls preload="none" src="${audioBase}/${encodeURIComponent(musicFile)}"></audio></div>
-      <div style="margin-top:.4rem"><button class="btn-sm rerun-asset" onclick="rerunMusic('${p.id}',this)">↺ Regenerate Music</button></div>
-    </div>`;
-  }
-  $("dp-body").innerHTML = body || '<div class="empty">No content yet.</div>';
-}
+        </div>
 
-// ═══════════════════════════════════════════════════════════
-//  Detail panel – edit mode
-// ═══════════════════════════════════════════════════════════
-function toggleEditMode() {
-  if (!_detailData) return;
-  const p = _detailData;
-  // Replace title with an input
-  $("dp-title").innerHTML =
-    `<input class="edit-title-input" id="edit-title" value="${escHtml(p.title)}" />`;
-  // Replace actions with Save / Cancel
-  $("dp-actions").innerHTML = `
-    <button class="btn-sm save" onclick="saveProjectEdits('${p.id}')">✔ Save</button>
-    <button class="btn-sm" onclick="renderDetail(_detailData)">✕ Cancel</button>`;
-  // Render editable body
-  const meta = p.metadata || {};
-  const scenes = meta.scenes || [];
-  let body = "";
+        <div className="nav-tabs">
+          <button className=${`nav-tab ${activePage === "dashboard" ? "active" : ""}`} onClick=${() => hasTopic ? setActivePage("dashboard") : showToast("Select a topic first", "error")}>Dashboard</button>
+          <button className=${`nav-tab ${activePage === "best-shorts" ? "active" : ""}`} onClick=${() => hasTopic ? setActivePage("best-shorts") : showToast("Select a topic first", "error")}>Best Shorts</button>
+          <button className=${`nav-tab ${activePage === "projects" ? "active" : ""}`} onClick=${() => hasTopic ? setActivePage("projects") : showToast("Select a topic first", "error")}>Projects</button>
+        </div>
 
-  // Tags
-  body += `<div class="detail-section">
-    <div class="detail-section-title">Tags</div>
-    <input class="edit-input" id="edit-tags" placeholder="comma-separated tags"
-           value="${escHtml(p.tags.join(", "))}" />
-  </div>`;
+        <div className="nav-spacer"></div>
+        <div className="sse-indicator" title="Pipeline status">
+          <div className=${`sse-dot ${sseMode}`}></div>
+          <span className="sse-label">${sseLabel}</span>
+        </div>
+        <button className="btn-generate" disabled=${!canGenerate} onClick=${() => {
+          setGeneratedIdeas([]);
+          setGenCount(5);
+          setGenOpen(true);
+        }}>Generate Ideas</button>
+      </nav>
 
-  // Metadata fields
-  body += `<div class="detail-section">
-    <div class="detail-section-title">Metadata</div>
-    <div class="edit-fields">`;
-  const inputFields = [
-    ["narrator", "Narrator", meta.narrator ?? ""],
-    ["duration", "Duration (s)", meta.duration ?? ""],
-    ["word_count", "Word Count", meta.word_count ?? ""],
-  ];
-  for (const [key, label, val] of inputFields) {
-    body += `<div class="edit-field">
-      <label class="edit-label">${escHtml(label)}</label>
-      <input class="edit-input" id="edit-meta-${key}" value="${escHtml(String(val))}" />
-    </div>`;
-  }
-  const textareaFields = [
-    ["summary", "Summary", meta.summary || ""],
-    ["transcript", "Transcript", meta.transcript || ""],
-    ["music", "Music Prompt", meta.music || ""],
-    ["visual_guide", "Visual Guide", meta.visual_guide || ""],
-  ];
-  for (const [key, label, val] of textareaFields) {
-    body += `<div class="edit-field">
-      <label class="edit-label">${escHtml(label)}</label>
-      <textarea class="edit-textarea" id="edit-meta-${key}" rows="3">${escHtml(val)}</textarea>
-    </div>`;
-  }
-  body += `</div></div>`;
-
-  // Scenes
-  if (scenes.length) {
-    body += `<div class="detail-section">
-      <div class="detail-section-title">Scenes (${scenes.length})</div>
-      <div class="scenes-list">${scenes
-        .map(
-          (s, i) => `
-        <div class="scene-card">
-          <div class="scene-body">
-            <div class="scene-num">Scene ${i + 1}${s.duration != null ? ` · ${s.duration}s` : ""}</div>
-            <label class="edit-label">Voiceover</label>
-            <textarea class="edit-textarea" id="edit-scene-${i}-voiceover" rows="3">${escHtml(s.voiceover || "")}</textarea>
-            <label class="edit-label" style="margin-top:.5rem">Image Prompt</label>
-            <textarea class="edit-textarea" id="edit-scene-${i}-image_prompt" rows="2">${escHtml(s.image_prompt || "")}</textarea>
+      <main>
+        <div className=${`page ${activePage === "splash" ? "active" : ""}`}>
+          <div className="splash">
+            <div className="splash-icon">[ ]</div>
+            <div className="splash-title">No topic selected</div>
+            <div className="splash-sub">Choose or create a topic workspace using the dropdown in the nav bar.</div>
           </div>
-        </div>`,
-        )
-        .join("")}
+        </div>
+
+        <div className=${`page ${activePage === "dashboard" ? "active" : ""}`}>
+          <div className="summary-row">
+            <div className="summary-chip"><div className="num">${dashboard?.total ?? "-"}</div><div className="lbl">Total</div></div>
+            <div className="summary-chip"><div className="num" style=${{ color: "var(--success)" }}>${statusCounts.rendered ?? "-"}</div><div className="lbl">Rendered</div></div>
+            <div className="summary-chip"><div className="num" style=${{ color: "var(--danger)" }}>${statusCounts.failed ?? "-"}</div><div className="lbl">Failed</div></div>
+            <div className="summary-chip"><div className="num" style=${{ color: "var(--s-idea)" }}>${statusCounts.idea ?? "-"}</div><div className="lbl">Ideas</div></div>
+          </div>
+
+          <h2>Upload Schedule</h2>
+          <div className="schedule-card">
+            <div className="schedule-header">
+              <span className=${`schedule-state ${schedule.enabled ? "is-on" : "is-off"}`}>${schedule.enabled ? "Enabled" : "Disabled"}</span>
+            </div>
+            <div className="schedule-row">
+              <span className="schedule-label">Cron</span>
+              <span className="schedule-value">${schedule.upload_rendered_cron || "-"}</span>
+            </div>
+            <div className="schedule-row">
+              <span className="schedule-label">Next runs</span>
+              <span className="schedule-runs">
+                ${Array.isArray(schedule.next_runs) && schedule.next_runs.length
+                  ? schedule.next_runs.map((item) => html`<span className="schedule-pill" key=${item}>${fmtScheduleDate(item)}</span>`)
+                  : html`<span className="text-muted">No upcoming times</span>`}
+              </span>
+            </div>
+            ${schedule.parse_error ? html`<div className="schedule-error">${schedule.parse_error}</div>` : null}
+          </div>
+
+          <h2>Pipeline</h2>
+          <div className="pipeline">
+            ${PIPELINE_STATUSES.map((status) => html`
+              <div key=${status} className="pipeline-step" style=${{ borderTop: `3px solid ${statusColor(status)}` }}>
+                <div className="step-count" style=${{ color: statusColor(status) }}>${statusCounts[status] ?? 0}</div>
+                <div className="step-label">${status.replace(/_/g, " ")}</div>
+              </div>
+            `)}
+          </div>
+
+          <h2>Batch Queues</h2>
+          <div className="grid-5">
+            ${Object.entries(queueLabels).map(([key, label]) => {
+              const count = Number(queueCounts[key] ?? 0);
+              return html`
+                <div className="queue-card" key=${key}>
+                  <div className="queue-name">${label}</div>
+                  <div className="queue-count">${count}</div>
+                  <div className="queue-label">pending</div>
+                  <button className="queue-run" disabled=${count === 0 || queueRunning[key]} onClick=${() => runQueue(key)}>Run</button>
+                </div>
+              `;
+            })}
+            <div className="queue-card">
+              <div className="queue-name">Full Pipeline</div>
+              <div className="queue-count">${totalPending}</div>
+              <div className="queue-label">projects ready</div>
+              <button className="queue-run" disabled=${totalPending === 0 || queueRunning.all} onClick=${() => runQueue("all")}>Run All</button>
+            </div>
+          </div>
+
+          <h2>Activity</h2>
+          <div className="activity-log">
+            ${activityLog.length
+              ? activityLog.map((entry, index) => html`
+                  <div key=${`${entry.ts.toISOString()}-${index}`} className=${`activity-entry level-${entry.level}`}>
+                    <span className="activity-time">${entry.ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                    <span className="activity-msg">${entry.msg}</span>
+                    ${entry.project_id ? html`<span className="activity-pid" title=${entry.project_id}>${entry.project_id.slice(0, 8)}</span>` : null}
+                  </div>
+                `)
+              : html`<div className="activity-empty">Waiting for activity...</div>`}
+          </div>
+        </div>
+
+        <div className=${`page ${activePage === "best-shorts" ? "active" : ""}`}>
+          <div className="section-header">
+            <div>
+              <h2>Best Performing Shorts</h2>
+              <p className="section-sub">Top YouTube Shorts sorted by views and matched against uploaded projects.</p>
+            </div>
+          </div>
+
+          <div className="summary-row best-shorts-summary">
+            <button className="btn-secondary" onClick=${loadBestShorts} disabled=${bestShortsLoading}>${bestShortsLoading ? "Loading..." : "Fetch data"}</button>
+            <button className="btn-secondary" onClick=${analyzeBestShorts} disabled=${bestShortsAnalyzing}>${bestShortsAnalyzing ? "Analyzing..." : "Analyze"}</button>
+            <div className="summary-chip"><div className="num">${bestSummary.total || "-"}</div><div className="lbl">Rows</div></div>
+            <div className="summary-chip"><div className="num" style=${{ color: "var(--success)" }}>${bestSummary.matched || "-"}</div><div className="lbl">Matched</div></div>
+            <div className="summary-chip"><div className="num" style=${{ color: "var(--warning)" }}>${bestSummary.unmatched || "-"}</div><div className="lbl">Unmatched</div></div>
+          </div>
+
+          ${bestShortsAnalysis
+            ? html`
+                <div className="best-shorts-analysis">
+                  <div className="best-shorts-analysis-head">
+                    <div className="best-shorts-analysis-title">Shorts Analysis</div>
+                    <div className="best-shorts-analysis-badge">${bestShortsAnalysisSource}</div>
+                  </div>
+                  <div className="best-shorts-analysis-body">${bestShortsAnalysis}</div>
+                </div>
+              `
+            : null}
+
+          ${!bestShorts.length
+            ? html`<div className="empty">Click Fetch data to fetch the latest data from YouTube Studio.</div>`
+            : html`
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Title</th>
+                      <th>Views</th>
+                      <th>Project</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th>Link</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${bestShorts.map((item, index) => html`
+                      <tr key=${`${item.title}-${index}`} onClick=${() => item.project_id ? openDetail(item.project_id) : null}>
+                        <td className="td-rank">${index + 1}</td>
+                        <td className="td-title">${item.title || "Untitled short"}</td>
+                        <td className="td-views">${Number(item.views || 0).toLocaleString()}</td>
+                        <td className="td-title">${item.project_id ? item.project_id.slice(0, 8) : html`<span className="text-muted">Not matched</span>`}</td>
+                        <td>${item.status ? badge(item.status) : html`<span className="text-muted">-</span>`}</td>
+                        <td className="td-date">${fmtDate(item.created_at)}</td>
+                        <td className="td-link" onClick=${(e) => e.stopPropagation()}>
+                          ${item.url ? html`<a className="table-link" href=${item.url} target="_blank" rel="noreferrer">Open</a>` : html`<span className="text-muted">-</span>`}
+                        </td>
+                      </tr>
+                    `)}
+                  </tbody>
+                </table>
+              `}
+        </div>
+
+        <div className=${`page ${activePage === "projects" ? "active" : ""}`}>
+          <div className="toolbar">
+            <input className="search-input" type="search" placeholder="Search by title..." value=${search} onInput=${(e) => setSearch(e.target.value)} />
+            <select className="select-filter" value=${tagFilter} onChange=${(e) => setTagFilter(e.target.value)}>
+              <option value="">All tags</option>
+              ${allTags.map((tag) => html`<option key=${tag} value=${tag}>${tag}</option>`)}
+            </select>
+            <select className="select-filter" value=${statusFilter} onChange=${(e) => setStatusFilter(e.target.value)}>
+              <option value="">All statuses</option>
+              ${PIPELINE_STATUSES.map((status) => html`<option key=${status} value=${status}>${status}</option>`)}
+            </select>
+            <select className="select-filter bulk-action-select" value=${bulkAction} onChange=${(e) => setBulkAction(e.target.value)}>
+              <option value="">Bulk action...</option>
+              <option value="delete">Bulk delete</option>
+              <option value="status">Bulk status update</option>
+            </select>
+            <button className="btn-sm" disabled=${selectedInView === 0 || !bulkAction} onClick=${applyBulkAction}>Apply</button>
+            <span className="bulk-selected-count">${selectedInView} selected</span>
+          </div>
+
+          ${projectsLoading
+            ? html`<div className="empty">Loading...</div>`
+            : !projects.length
+            ? html`<div className="empty">No projects yet. Generate ideas to get started.</div>`
+            : html`
+                <table>
+                  <thead>
+                    <tr>
+                      <th className="th-check">
+                        <input
+                          className="header-check"
+                          type="checkbox"
+                          checked=${projects.length > 0 && selectedInView === projects.length}
+                          onChange=${(e) => {
+                            if (e.target.checked) {
+                              setSelectedIds(new Set(projects.map((project) => project.id)));
+                            } else {
+                              setSelectedIds(new Set());
+                            }
+                          }}
+                          aria-label="Select all projects"
+                        />
+                      </th>
+                      <th>Title</th>
+                      <th>Status</th>
+                      <th>Tags</th>
+                      <th>Created</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${projects.map((project) => html`
+                      <tr key=${project.id} className=${selectedIds.has(project.id) ? "is-selected" : ""} onClick=${() => openDetail(project.id)}>
+                        <td className="td-check" onClick=${(e) => e.stopPropagation()}>
+                          <input
+                            className="row-check"
+                            type="checkbox"
+                            checked=${selectedIds.has(project.id)}
+                            onChange=${(e) => {
+                              const next = new Set(selectedIds);
+                              if (e.target.checked) next.add(project.id);
+                              else next.delete(project.id);
+                              setSelectedIds(next);
+                            }}
+                            aria-label=${`Select ${project.title}`}
+                          />
+                        </td>
+                        <td className="td-title">${project.title}</td>
+                        <td>${badge(project.status)}</td>
+                        <td className="td-tags">
+                          ${(project.tags || []).length
+                            ? project.tags.map((tag) => html`<span key=${tag} className="tag">${tag}</span>`)
+                            : html`<span className="text-muted">-</span>`}
+                        </td>
+                        <td className="td-date">${fmtDate(project.created_at)}</td>
+                        <td>
+                          <${ProjectActions}
+                            project=${project}
+                            onApprove=${approveProject}
+                            onReject=${rejectProject}
+                            onRun=${runPipeline}
+                            onRerender=${reRender}
+                            onDelete=${deleteProject}
+                          />
+                        </td>
+                      </tr>
+                    `)}
+                  </tbody>
+                </table>
+              `}
+        </div>
+      </main>
+
+      <div className=${`modal-overlay ${genOpen ? "open" : ""}`}>
+        <div className="modal">
+          <button className="modal-close" onClick=${() => setGenOpen(false)}>x</button>
+          <div className="modal-title">Generate Ideas</div>
+          <div className="modal-sub">${canGenerate ? `Topic: ${currentTopicText}` : "Select a topic first"}</div>
+
+          ${generatedIdeas.length === 0
+            ? html`
+                <div className="form-field">
+                  <label className="form-label">How many ideas?</label>
+                  <div className="count-options">
+                    ${[3, 5, 8, 10].map((count) => html`
+                      <div key=${count} className=${`count-option ${genCount === count ? "selected" : ""}`} onClick=${() => setGenCount(count)}>${count}</div>
+                    `)}
+                  </div>
+                </div>
+              `
+            : null}
+
+          ${generatedIdeas.length > 0
+            ? html`
+                <div style=${{ fontSize: ".8rem", color: "var(--success)", marginBottom: ".5rem" }}>
+                  ${generatedIdeas.length} idea(s) created
+                </div>
+                <div className="generated-list">
+                  ${generatedIdeas.map((idea) => html`
+                    <div key=${idea.id} className="gen-item">
+                      <div className="gen-title">${idea.title}</div>
+                      ${idea.metadata?.summary ? html`<div className="gen-summary">${idea.metadata.summary}</div>` : null}
+                    </div>
+                  `)}
+                </div>
+              `
+            : null}
+
+          <div className="modal-actions">
+            <button className="btn-secondary" onClick=${() => setGenOpen(false)} disabled=${genLoading}>Cancel</button>
+            ${generatedIdeas.length
+              ? html`<button className="btn-primary" onClick=${() => setGenOpen(false)}>Done</button>`
+              : html`<button className="btn-primary" onClick=${submitGenerate} disabled=${genLoading || !canGenerate}>${genLoading ? "Generating..." : "Generate"}</button>`}
+          </div>
+        </div>
       </div>
-    </div>`;
-  }
 
-  $("dp-body").innerHTML = body;
+      <div className=${`detail-overlay ${detailOpen ? "open" : ""}`} onClick=${() => {
+        setDetailOpen(false);
+        setDetailProject(null);
+      }}></div>
+      <div className=${`detail-panel ${detailOpen ? "open" : ""}`}>
+        <div className="detail-header">
+          <div className="detail-header-info">
+            <div className="detail-title">${detailProject?.title || "Project"}</div>
+            <div className="detail-meta">
+              ${detailProject ? html`${badge(detailProject.status)} · <span className="text-muted">${detailProject.id}</span> · ${fmtDate(detailProject.created_at)}` : ""}
+            </div>
+          </div>
+          <button className="detail-close" onClick=${() => {
+            setDetailOpen(false);
+            setDetailProject(null);
+          }}>x</button>
+        </div>
+
+        ${detailProject
+          ? html`
+              <div className="detail-actions">
+                ${detailProject.status === "idea" ? html`<button className="btn-sm approve" onClick=${() => approveProject(detailProject.id)}>Approve</button>` : null}
+                ${["idea", "approved"].includes(detailProject.status) ? html`<button className="btn-sm reject" onClick=${() => rejectProject(detailProject.id)}>Reject</button>` : null}
+                ${detailProject.status === "approved" ? html`<button className="btn-sm run" onClick=${() => runPipeline(detailProject.id)}>Run Pipeline</button>` : null}
+                ${["rendered", "failed", "media_ready", "images_ready", "clips_ready"].includes(detailProject.status)
+                  ? html`<button className="btn-sm rerender" onClick=${() => reRender(detailProject.id)}>Re-render</button>`
+                  : null}
+                ${detailProject.status === "rendered"
+                  ? html`<button className="btn-sm upload" onClick=${() => uploadToYouTube(detailProject.id)}>Upload to YouTube</button>`
+                  : null}
+                <button className="btn-sm" onClick=${() => openProjectFolder(detailProject.id)}>Open Folder</button>
+                <select className="select-filter status-jump" value=${detailProject.status} onChange=${(e) => setProjectStatus(detailProject.id, e.target.value)}>
+                  ${PIPELINE_STATUSES.map((status) => html`<option key=${status} value=${status}>${status.replace(/_/g, " ")}</option>`)}
+                </select>
+                <button className="btn-sm delete" onClick=${() => deleteProject(detailProject.id)}>Delete</button>
+              </div>
+
+              ${detailMeta.video_path
+                ? html`
+                    <div className="detail-section">
+                      <div className="detail-section-title">Preview</div>
+                      <div className="video-preview">
+                        <video controls preload="metadata" src=${`/api/projects/${detailProject.id}/video/${encodeURIComponent(detailMeta.video_path.replace(/\\/g, "/").split("/").pop())}`}></video>
+                      </div>
+                    </div>
+                  `
+                : null}
+
+              <div className="detail-section">
+                <div className="detail-section-title">Metadata</div>
+                <div className="meta-grid">
+                  ${Object.entries({
+                    Summary: detailMeta.summary,
+                    Transcript: detailMeta.transcript,
+                    Narrator: detailMeta.narrator,
+                    "Music prompt": detailMeta.music,
+                    "Visual guide": detailMeta.visual_guide,
+                    Duration: detailMeta.duration != null ? `${detailMeta.duration}s` : null,
+                    "Word count": detailMeta.word_count,
+                    Error: detailMeta.error,
+                  })
+                    .filter((entry) => entry[1] != null && String(entry[1]).trim() !== "")
+                    .map(([key, value]) => html`
+                      <div key=${key} className=${`meta-item ${key === "Error" ? "meta-item-error" : ""}`}>
+                        <div className="meta-key">${key}</div>
+                        <div className="meta-val pre">${String(value)}</div>
+                      </div>
+                    `)}
+                </div>
+              </div>
+
+              ${(detailProject.tags || []).length
+                ? html`
+                    <div className="detail-section">
+                      <div className="detail-section-title">Tags</div>
+                      <div className="td-tags">
+                        ${detailProject.tags.map((tag) => html`<span key=${tag} className="tag">${tag}</span>`)}
+                      </div>
+                    </div>
+                  `
+                : null}
+
+              ${scenes.length
+                ? html`
+                    <div className="detail-section">
+                      <div className="detail-section-title-row">
+                        <span className="detail-section-title">Scenes (${scenes.length})</span>
+                        <span className="section-title-actions">
+                          <button className="btn-sm rerun-asset" onClick=${() => rerunAllImages(detailProject.id)}>All Images</button>
+                        </span>
+                      </div>
+                      <div className="scenes-list">
+                        ${scenes.map((scene, index) => {
+                          const imageFile = scene.image_path ? scene.image_path.replace(/\\/g, "/").split("/").pop() : null;
+                          const audioFile = scene.audio_path ? scene.audio_path.replace(/\\/g, "/").split("/").pop() : null;
+                          return html`
+                            <div key=${index} className="scene-card">
+                              ${imageFile
+                                ? html`
+                                    <div className="scene-thumb">
+                                      <img loading="lazy" src=${`/api/projects/${detailProject.id}/image/${encodeURIComponent(imageFile)}`} alt=${`Scene ${index + 1}`} />
+                                    </div>
+                                  `
+                                : null}
+                              <div className="scene-body">
+                                <div className="scene-num">Scene ${index + 1}${scene.duration != null ? ` · ${scene.duration}s` : ""}</div>
+                                <div className="scene-voiceover">${scene.voiceover || ""}</div>
+                                ${scene.image_prompt ? html`<div className="scene-prompt">${scene.image_prompt}</div>` : null}
+                                ${audioFile
+                                  ? html`
+                                      <div className="scene-audio">
+                                        <audio controls preload="none" src=${`/api/projects/${detailProject.id}/audio/${encodeURIComponent(audioFile)}`}></audio>
+                                      </div>
+                                    `
+                                  : null}
+                                <div className="scene-rerun-actions">
+                                  <button className="btn-sm rerun-asset" onClick=${() => rerunSceneImage(detailProject.id, index)}>Image</button>
+                                </div>
+                              </div>
+                            </div>
+                          `;
+                        })}
+                      </div>
+                    </div>
+                  `
+                : null}
+
+              ${detailMeta.music_path
+                ? html`
+                    <div className="detail-section">
+                      <div className="detail-section-title">Background Music</div>
+                      <div className="music-audio">
+                        <audio
+                          controls
+                          preload="none"
+                          src=${`/api/projects/${detailProject.id}/audio/${encodeURIComponent(detailMeta.music_path.replace(/\\/g, "/").split("/").pop())}`}
+                        ></audio>
+                      </div>
+                      <div style=${{ marginTop: ".4rem" }}>
+                        <button className="btn-sm rerun-asset" onClick=${() => rerunMusic(detailProject.id)}>Regenerate Music</button>
+                      </div>
+                    </div>
+                  `
+                : null}
+            `
+          : html`<div className="empty">No content yet.</div>`}
+      </div>
+
+      <div id="toast" className=${toastState.msg ? `show ${toastState.type}` : ""}>${toastState.msg}</div>
+    </div>
+  `;
 }
 
-async function saveProjectEdits(id) {
-  if (!_detailData) return;
-  const title = ($("edit-title")?.value ?? "").trim() || _detailData.title;
-  const tagsRaw = $("edit-tags")?.value ?? "";
-  const tags = tagsRaw
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean);
-
-  // Start from existing metadata so we don't lose fields we don't edit (e.g. paths)
-  const meta = { ..._detailData.metadata };
-
-  const numericKeys = ["duration", "word_count"];
-  const inputKeys = ["narrator", "duration", "word_count"];
-  for (const key of inputKeys) {
-    const el = $(`edit-meta-${key}`);
-    if (!el) continue;
-    const raw = el.value.trim();
-    if (raw === "") {
-      delete meta[key];
-    } else {
-      meta[key] = numericKeys.includes(key) ? parseFloat(raw) : raw;
-    }
-  }
-  for (const key of ["summary", "transcript", "music", "visual_guide"]) {
-    const el = $(`edit-meta-${key}`);
-    if (!el) continue;
-    const raw = el.value.trim();
-    if (raw === "") {
-      delete meta[key];
-    } else {
-      meta[key] = raw;
-    }
-  }
-
-  // Update scenes
-  const scenes = (meta.scenes || []).map((s, i) => {
-    const voEl = $(`edit-scene-${i}-voiceover`);
-    const ipEl = $(`edit-scene-${i}-image_prompt`);
-    return {
-      ...s,
-      voiceover: voEl ? voEl.value : s.voiceover,
-      image_prompt: ipEl ? ipEl.value : s.image_prompt,
-    };
-  });
-  if (scenes.length) meta.scenes = scenes;
-
-  try {
-    const updated = await api("PATCH", `/projects/${id}`, {
-      title,
-      tags,
-      metadata: meta,
-    });
-    toast("Saved", "success");
-    renderDetail(updated);
-    loadProjects();
-    loadDashboard();
-  } catch (e) {
-    toast("Save failed: " + e.message, "error");
-  }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  Keyboard
-// ═══════════════════════════════════════════════════════════
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    if ($("gen-modal").classList.contains("open")) closeGenerateModal();
-    else if ($("detail-panel").classList.contains("open")) closeDetail();
-    else $("topic-dropdown").classList.remove("open");
-  }
-});
-
-// ═══════════════════════════════════════════════════════════
-//  Init
-// ═══════════════════════════════════════════════════════════
-connectSSE();
-loadTopics().then(() => {
-  if (currentTopicId) {
-    switchPage("dashboard");
-    $("tab-dashboard").classList.add("active");
-    loadDashboard();
-  }
-});
+createRoot(document.getElementById("root")).render(html`<${App} />`);
