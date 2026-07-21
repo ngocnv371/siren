@@ -1,0 +1,162 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>auto-streams</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ══════════════════════ NAV ══════════════════════ -->
+<nav>
+  <div class="brand">auto<span>-streams</span></div>
+
+  <div class="topic-ws" id="topic-ws">
+    <button class="topic-ws-btn no-topic" id="topic-ws-btn" onclick="toggleTopicDropdown(event)">
+      <span class="label" id="topic-ws-label">Select a topic…</span>
+      <span class="chevron">▾</span>
+    </button>
+    <div class="topic-dropdown" id="topic-dropdown">
+      <div class="topic-dropdown-header">Workspace</div>
+      <div class="topic-list" id="topic-list-dd"></div>
+      <div class="topic-add-row">
+        <input class="topic-add-input" id="topic-add-input" placeholder="New one-sentence topic…" onkeydown="if(event.key==='Enter') addTopic()" />
+        <button class="topic-add-btn" onclick="addTopic()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" id="tab-dashboard" onclick="showPage('dashboard', this)">Dashboard</button>
+    <button class="nav-tab" id="tab-best-shorts" onclick="showPage('best-shorts', this)">Best Shorts</button>
+    <button class="nav-tab" id="tab-projects" onclick="showPage('projects', this)">Projects</button>
+  </div>
+  <div class="nav-spacer"></div>
+  <div class="sse-indicator" id="sse-indicator" title="Pipeline status">
+    <div class="sse-dot idle" id="sse-dot"></div>
+    <span class="sse-label" id="sse-label">idle</span>
+  </div>
+  <button class="btn-generate" id="btn-generate" disabled onclick="openGenerateModal()">Generate Ideas</button>
+</nav>
+
+<!-- ══════════════════════ PAGES ══════════════════════ -->
+<main>
+
+  <div id="page-splash" class="page active">
+    <div class="splash">
+      <div class="splash-icon">🗂️</div>
+      <div class="splash-title">No topic selected</div>
+      <div class="splash-sub">Choose or create a topic workspace using the dropdown in the nav bar.</div>
+    </div>
+  </div>
+
+  <div id="page-dashboard" class="page">
+    <div class="summary-row">
+      <div class="summary-chip"><div class="num" id="s-total">—</div><div class="lbl">Total</div></div>
+      <div class="summary-chip"><div class="num" id="s-rendered" style="color:var(--success)">—</div><div class="lbl">Rendered</div></div>
+      <div class="summary-chip"><div class="num" id="s-failed" style="color:var(--danger)">—</div><div class="lbl">Failed</div></div>
+      <div class="summary-chip"><div class="num" id="s-idea" style="color:var(--s-idea)">—</div><div class="lbl">Ideas</div></div>
+    </div>
+    <h2>Upload Schedule</h2>
+    <div class="schedule-card" id="schedule-card"></div>
+    <h2>Pipeline</h2>
+    <div class="pipeline" id="pipeline-steps"></div>
+    <h2>Batch Queues</h2>
+    <div class="grid-5" id="queue-grid"></div>
+    <h2>Activity</h2>
+    <div class="activity-log" id="activity-log"><div class="activity-empty">Waiting for activity…</div></div>
+  </div>
+
+  <div id="page-best-shorts" class="page">
+    <div class="section-header">
+      <div>
+        <h2>Best Performing Shorts</h2>
+        <p class="section-sub">Top YouTube Shorts sorted by views and matched against uploaded projects.</p>
+      </div>
+    </div>
+    <div class="summary-row best-shorts-summary">
+      <button class="btn-secondary" onclick="loadBestShorts()">Fetch data</button>
+      <button class="btn-secondary" id="btn-best-shorts-analyze" onclick="analyzeBestShorts()" title="Send the title & views to AI for analysis">Analyze</button>
+
+      <div class="summary-chip"><div class="num" id="bs-total">—</div><div class="lbl">Rows</div></div>
+      <div class="summary-chip"><div class="num" id="bs-matched" style="color:var(--success)">—</div><div class="lbl">Matched</div></div>
+      <div class="summary-chip"><div class="num" id="bs-unmatched" style="color:var(--warning)">—</div><div class="lbl">Unmatched</div></div>
+    </div>
+    <div id="best-shorts-analysis"></div>
+    <div id="best-shorts-wrap"><div class="empty">Click <strong>Fetch data</strong> to fetch the latest data from YouTube Studio.</div></div>
+  </div>
+
+  <div id="page-projects" class="page">
+    <div class="toolbar">
+      <input class="search-input" type="search" id="search-input" placeholder="Search by title…" oninput="debounceLoadProjects()" />
+      <select class="select-filter" id="tag-filter" onchange="loadProjects()"><option value="">All tags</option></select>
+      <select class="select-filter" id="status-filter" onchange="loadProjects()">
+        <option value="">All statuses</option>
+        <option value="idea">idea</option>
+        <option value="approved">approved</option>
+        <option value="content_ready">content_ready</option>
+        <option value="scenes_ready">scenes_ready</option>
+        <option value="tts_ready">tts_ready</option>
+        <option value="music_ready">music_ready</option>
+        <option value="images_ready">images_ready</option>
+        <option value="clips_ready">clips_ready</option>
+        <option value="rendered">rendered</option>
+        <option value="uploaded">uploaded</option>
+        <option value="failed">failed</option>
+      </select>
+      <select class="select-filter bulk-action-select" id="bulk-action" onchange="onBulkActionChanged()">
+        <option value="">Bulk action…</option>
+        <option value="delete">Bulk delete</option>
+        <option value="status">Bulk status update</option>
+      </select>
+      <button class="btn-sm" id="bulk-apply" onclick="applyBulkAction()" disabled>Apply</button>
+      <span class="bulk-selected-count" id="bulk-selected-count">0 selected</span>
+    </div>
+    <div id="projects-table-wrap"><div class="empty">Loading…</div></div>
+  </div>
+
+</main>
+
+<!-- ══════════════════════ GENERATE IDEAS MODAL ══════════════════════ -->
+<div class="modal-overlay" id="gen-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeGenerateModal()">✕</button>
+    <div class="modal-title">Generate Ideas</div>
+    <div class="modal-sub" id="gen-modal-sub"></div>
+    <div class="form-field" id="gen-count-field">
+      <label class="form-label">How many ideas?</label>
+      <div class="count-options">
+        <div class="count-option" onclick="selectCount(3)">3</div>
+        <div class="count-option selected" onclick="selectCount(5)">5</div>
+        <div class="count-option" onclick="selectCount(8)">8</div>
+        <div class="count-option" onclick="selectCount(10)">10</div>
+      </div>
+    </div>
+    <div id="gen-results"></div>
+    <div class="modal-actions" id="gen-actions">
+      <button class="btn-secondary" onclick="closeGenerateModal()">Cancel</button>
+      <button class="btn-primary" onclick="submitGenerate()"><span>Generate</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ DETAIL PANEL ══════════════════════ -->
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detail-panel">
+  <div class="detail-header">
+    <div class="detail-header-info">
+      <div class="detail-title" id="dp-title"></div>
+      <div class="detail-meta" id="dp-meta"></div>
+    </div>
+    <button class="detail-close" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="detail-actions" id="dp-actions"></div>
+  <div id="dp-body"></div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

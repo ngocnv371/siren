@@ -1,0 +1,37 @@
+"""Pipeline package — re-exports all public stage functions.
+
+Status flow:
+  approved      → [text_stage]   → scenes_ready
+  scenes_ready  → [tts_stage]    → tts_ready     (TTS per scene)
+  tts_ready     → [music_stage]  → music_ready   (background music)
+  music_ready   → [image_stage]  → images_ready
+  images_ready  → [render_stage] → clips_ready → done
+
+Per-asset reruns (no status change):
+  any           → [run_scene_image]  re-gen image for one scene
+  any           → [run_scene_tts]    re-gen TTS audio for one scene
+  any           → [rerun_music]      re-gen background music
+"""
+
+from .full import run_full_pipeline
+from .dashboard_shorts import fetch_best_shorts
+from .image import run_all_scene_images, run_image_stage, run_scene_image
+from .music import rerun_music, run_music_stage
+from .render import run_render_stage
+from .text import run_text_stage
+from .tts import run_tts_stage
+from .upload import run_upload_stage
+
+__all__ = [
+    "run_text_stage",
+    "run_tts_stage",
+    "run_music_stage",
+    "rerun_music",
+    "run_image_stage",
+    "run_scene_image",
+    "run_all_scene_images",
+    "run_render_stage",
+    "run_full_pipeline",
+    "run_upload_stage",
+    "fetch_best_shorts",
+]

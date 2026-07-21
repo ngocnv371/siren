@@ -1,0 +1,61 @@
+database:
+  path: ./data/auto-streams.db
+
+temp_dir: ./temp
+
+providers:
+  text: gemini          # gemini | openai
+  image: comfy          # gemini | comfy
+  tts: kittentts        # gemini | kittentts
+  music: comfy          # comfy
+  tts_delay: 3          # seconds to wait between per-scene TTS calls (increase if hitting rate limits)
+
+gemini:
+  api_key: YOUR_KEY
+  text_model: gemini-3-flash-preview
+  image_model: gemini-3.1-flash-image-preview
+  tts_model: gemini-2.5-flash-preview-tts
+  tts_voice: Kore
+
+openai:
+  base_url: http://localhost:11434/v1    # any OpenAI-compatible endpoint
+  api_key: ollama
+  model: llama3.2
+
+comfy:
+  base_url: http://127.0.0.1:8188
+  workflows:
+    image: ./assets/comfy-zimage.json
+    music: ./assets/comfy-music.json
+
+kittentts:
+  model: KittenML/kitten-tts-mini-0.8               # Piper voice model
+  voice: Luna
+
+video:
+  scene_gap: 0.8
+  enableKenBurns: true
+  enableParticles: false
+  enableSubtitles: true
+  subtitleStyle:
+    font: Arial
+    fontSize: 24
+    color: "#FFFFFF"   # hex #RRGGBB
+    stroke: "#000000"  # hex #RRGGBB
+
+server:
+  host: 0.0.0.0
+  port: 8000
+
+youtube:
+  # Path to a Firefox profile directory that is already logged in to YouTube.
+  # Leave empty to use a fresh (unauthenticated) profile.
+  firefox_profile: "C:\\Users\\Ngoc\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\xxxxxxxx.Profile 1"
+  # Visibility for uploaded videos: public | unlisted | private
+  visibility: unlisted
+  headless: true   # Whether to run the browser in headless mode (no GUI). Set to false for debugging.
+
+scheduler:
+  enabled: false
+  # Local server time. Standard 5-field cron: minute hour day month weekday.
+  upload_rendered_cron: "0 8,10,13 * * *"
