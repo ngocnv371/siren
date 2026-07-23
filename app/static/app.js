@@ -116,6 +116,7 @@ function ProfilePanel({ profiles, selectedProfile, onSelectProfile, topics, curr
                 >
                   <div className="profile-card-info">
                     <span className="profile-card-name">${profile.name}</span>
+                    <span className="profile-form-badge ${profile.form}">${profile.form === "long" ? "Long" : "Short"}</span>
                     ${profile.youtube_name ? html`<span className="profile-card-subtitle">${profile.youtube_name}</span>` : null}
                   </div>
                 </div>

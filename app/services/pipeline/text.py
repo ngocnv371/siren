@@ -68,10 +68,16 @@ async def run_text_stage(project_id: str) -> None:
                  getattr(cfg.gemini if cfg.providers.text == "gemini" else cfg.openai, "text_model", "?"))
 
         summary_hint = f'\nContext: "{existing_summary}"' if existing_summary else ""
+        if profile.form == "long":
+            duration_desc = "a long-form YouTube video (target ~10 minutes, ~1300-1500 words)"
+            scene_instruction = '"scenes": [\n    {\n      "voiceover": "exact words spoken in this scene",\n      "image_prompt": "detailed image generation prompt for this scene",\n      "duration": "scene duration in seconds (e.g. 15 for 15 seconds)"\n    }\n  ]'
+        else:
+            duration_desc = "YouTube Shorts (target ~60 seconds)"
+            scene_instruction = '"scenes": [\n    {\n      "voiceover": "exact words spoken in this scene",\n      "image_prompt": "detailed image generation prompt for this scene"\n    }\n  ]'
         prompt = (
             f'Video title: "{project.title}"\n'
             f'Topic: "{topic_text}"{summary_hint}\n\n'
-            "Generate a complete, engaging YouTube Shorts script (target ~60 seconds).\n"
+            f"Generate a complete, engaging video script for {duration_desc}.\n"
             "Respond with JSON ONLY — no explanation, no markdown fences:\n"
             "{\n"
             '  "transcript": "full narration as one block of text",\n'
@@ -79,12 +85,7 @@ async def run_text_stage(project_id: str) -> None:
             '  "music": "background music style/mood description",\n'
             '  "visual_guide": "overall visual style (colour palette, camera feel, etc.)",\n'
             '  "tags": ["up to 5 short hashtag-style keywords relevant to the video, without the # symbol"],\n'
-            '  "scenes": [\n'
-            '    {\n'
-            '      "voiceover": "exact words spoken in this scene",\n'
-            '      "image_prompt": "detailed image generation prompt for this scene"\n'
-            "    }\n"
-            "  ]\n"
+            f'  {scene_instruction}\n'
             "}"
         )
         prompt = _with_profile_script_prompt(prompt, profile.prompts.script)
@@ -118,12 +119,24 @@ async def run_text_stage(project_id: str) -> None:
                 str(s.get("image_prompt", ""))[:80],
             )
 
+        estimated_duration = 0
+        for s in scenes:
+            dur = s.get("duration")
+            if dur is not None:
+                try:
+                    estimated_duration += float(dur)
+                except (ValueError, TypeError):
+                    pass
+        if estimated_duration > 0:
+            log.info("text_stage: estimated duration=%.1fs (%.1fm)", estimated_duration, estimated_duration / 60)
+
         meta = {
             "transcript":   transcript,
             "narrator":     str(data.get("narrator", "")),
             "music":        str(data.get("music", "")),
             "visual_guide": str(data.get("visual_guide", "")),
             "word_count":   word_count,
+            "estimated_duration": estimated_duration,
             "scenes":       scenes,
         }
         if existing_summary:

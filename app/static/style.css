@@ -567,6 +567,26 @@ tbody td { padding: .65rem .75rem; vertical-align: middle; }
 }
 .profile-card-name.is-default { color: var(--primary); }
 
+.profile-form-badge {
+  display: inline-block;
+  font-size: .6rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.profile-form-badge.short {
+  background: rgba(0, 180, 120, .15);
+  color: #00b478;
+}
+.profile-form-badge.long {
+  background: rgba(100, 120, 255, .15);
+  color: #6478ff;
+}
+
 .profile-default-dot {
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--primary); flex-shrink: 0;

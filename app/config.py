@@ -102,6 +102,7 @@ class ProfilePromptsConfig:
 @dataclass
 class ProfileConfig:
     name: str = "default"
+    form: str = "short"            # short | long
     youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
     schedule: SchedulerConfig = field(default_factory=SchedulerConfig)
     prompts: ProfilePromptsConfig = field(default_factory=ProfilePromptsConfig)
@@ -152,9 +153,14 @@ def _parse_profiles(data: dict, cfg: AppConfig) -> list[ProfileConfig]:
             else:
                 raise ValueError(f"profiles[{i}].prompts must be a mapping")
 
+            form = str(raw.get("form", "short")).lower()
+            if form not in ("short", "long"):
+                form = "short"
+
             profiles.append(
                 ProfileConfig(
                     name=name,
+                    form=form,
                     youtube=YouTubeConfig(**raw.get("youtube", {})),
                     schedule=schedule,
                     prompts=prompts,
