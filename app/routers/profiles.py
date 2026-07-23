@@ -14,6 +14,7 @@ async def list_profiles() -> list[ProfileOut]:
     return [
         ProfileOut(
             name=profile.name,
+            youtube_name=profile.youtube.name,
             schedule_enabled=profile.schedule.enabled,
             upload_rendered_cron=profile.schedule.upload_rendered_cron,
             prompts_ideate=profile.prompts.ideate,

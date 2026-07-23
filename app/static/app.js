@@ -118,7 +118,10 @@ function ProfilePanel({ profiles, selectedProfile, onSelectProfile, topics, curr
                   className=${`profile-card ${profile.name === selectedProfile ? "is-selected" : ""}`}
                   onClick=${() => onSelectProfile(profile.name)}
                 >
-                  <span className="profile-card-name">${profile.name}</span>
+                  <div className="profile-card-info">
+                    <span className="profile-card-name">${profile.name}</span>
+                    ${profile.youtube_name ? html`<span className="profile-card-subtitle">${profile.youtube_name}</span>` : null}
+                  </div>
                 </div>
               `)}
             </div>

@@ -542,12 +542,25 @@ tbody td { padding: .65rem .75rem; vertical-align: middle; }
   border-color: var(--primary);
 }
 
+.profile-card-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .profile-card-name {
   font-size: .875rem;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.profile-card-subtitle {
+  font-size: .75rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
 }
 .profile-card-name.is-default { color: var(--primary); }
 

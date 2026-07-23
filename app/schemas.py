@@ -83,6 +83,7 @@ class GenerateIdeasRequest(BaseModel):
 
 class ProfileOut(BaseModel):
     name: str
+    youtube_name: str = ""
     schedule_enabled: bool
     upload_rendered_cron: str
     prompts_ideate: str = ""

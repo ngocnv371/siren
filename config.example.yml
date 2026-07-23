@@ -50,6 +50,7 @@ server:
 profiles:
   - name: weird-stories
     youtube:
+      name: Weird Stories Channel
       # Path to a Firefox profile directory that is already logged in to YouTube.
       # Leave empty to use a fresh (unauthenticated) profile.
       firefox_profile: "C:\\Users\\Ngoc\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\xxxxxxxx.Profile 1"

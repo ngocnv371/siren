@@ -81,6 +81,7 @@ class ServerConfig:
 
 @dataclass
 class YouTubeConfig:
+    name: str = ""                  # Display name for the YouTube channel/profile
     firefox_profile: str = ""       # absolute or relative path to a Firefox profile directory
     visibility: str = "unlisted"    # public | unlisted | private
     headless: bool = False          # Whether to run the browser in headless mode (no GUI). Set to true for server deployments.
