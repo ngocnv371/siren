@@ -6,7 +6,7 @@ import logging
 import os
 import time
 
-from app.config import get_config
+from app.config import get_config, get_profile
 from app.database import get_session_factory
 from app.models import Project
 from app.services.generation.service import GenerationService
@@ -62,6 +62,14 @@ async def run_image_stage(project_id: str) -> None:
         out_dir = _project_dir(project_id)
         svc = GenerationService()
 
+        profile = get_profile(project.profile)
+        if profile.form == "long":
+            img_width, img_height = 1920, 1080
+        else:
+            img_width, img_height = 1080, 1920
+        log.info("image_stage: profile=%r  form=%r  dimensions=%dx%d",
+                 profile.name, profile.form, img_width, img_height)
+
         for i, scene in enumerate(scenes):
             # Skip scenes that already have a valid image on disk.
             existing_path = scene.get("image_path")
@@ -77,7 +85,7 @@ async def run_image_stage(project_id: str) -> None:
             log.debug("image_stage: scene %d/%d  prompt=%r", i + 1, len(scenes), prompt[:120])
 
             t_img = time.monotonic()
-            image_bytes = await asyncio.to_thread(svc.generate_image, prompt)
+            image_bytes = await asyncio.to_thread(svc.generate_image, prompt, img_width, img_height)
             image_path = os.path.join(out_dir, f"scene_{i:03d}_image.png")
             with open(image_path, "wb") as f:
                 f.write(image_bytes)
@@ -143,9 +151,15 @@ async def run_scene_image(project_id: str, scene_index: int) -> None:
         out_dir = _project_dir(project_id)
         svc = GenerationService()
 
-        log.debug("scene_image: scene %d  prompt=%r", scene_index, prompt[:120])
+        profile = get_profile(project.profile)
+        if profile.form == "long":
+            img_width, img_height = 1920, 1080
+        else:
+            img_width, img_height = 1080, 1920
+
+        log.debug("scene_image: scene %d  prompt=%r  dims=%dx%d", scene_index, prompt[:120], img_width, img_height)
         t_img = time.monotonic()
-        image_bytes = await asyncio.to_thread(svc.generate_image, prompt)
+        image_bytes = await asyncio.to_thread(svc.generate_image, prompt, img_width, img_height)
         image_path = os.path.join(out_dir, f"scene_{scene_index:03d}_image.png")
         with open(image_path, "wb") as f:
             f.write(image_bytes)
@@ -201,12 +215,20 @@ async def run_all_scene_images(project_id: str) -> None:
         out_dir = _project_dir(project_id)
         svc = GenerationService()
 
+        profile = get_profile(project.profile)
+        if profile.form == "long":
+            img_width, img_height = 1920, 1080
+        else:
+            img_width, img_height = 1080, 1920
+        log.info("all_scene_images: profile=%r  form=%r  dimensions=%dx%d",
+                 profile.name, profile.form, img_width, img_height)
+
         for i, scene in enumerate(scenes):
             base_prompt = scene.get("image_prompt") or f"Cinematic scene: {scene.get('voiceover', '')}"
             prompt = f"{base_prompt}. Style: {visual_guide}" if visual_guide else base_prompt
-            log.debug("all_scene_images: scene %d/%d  prompt=%r", i + 1, len(scenes), prompt[:120])
+            log.debug("all_scene_images: scene %d/%d  prompt=%r  dims=%dx%d", i + 1, len(scenes), prompt[:120], img_width, img_height)
             t_img = time.monotonic()
-            image_bytes = await asyncio.to_thread(svc.generate_image, prompt)
+            image_bytes = await asyncio.to_thread(svc.generate_image, prompt, img_width, img_height)
             image_path = os.path.join(out_dir, f"scene_{i:03d}_image.png")
             with open(image_path, "wb") as f:
                 f.write(image_bytes)
