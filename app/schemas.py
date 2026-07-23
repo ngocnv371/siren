@@ -10,11 +10,13 @@ from app.models import PROJECT_STATUSES
 
 class TopicCreate(BaseModel):
     topic: str
+    profile: str = "default"
 
 
 class TopicOut(BaseModel):
     id: str
     topic: str
+    profile: str = "default"
     created_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
@@ -23,12 +25,14 @@ class TopicOut(BaseModel):
 class ProjectCreate(BaseModel):
     topic_id: str
     title: str
+    profile: Optional[str] = None
     tags: list[str] = []
     metadata: dict[str, Any] = {}
 
 
 class ProjectUpdate(BaseModel):
     title: Optional[str] = None
+    profile: Optional[str] = None
     tags: Optional[list[str]] = None
     metadata: Optional[dict[str, Any]] = None
 
@@ -47,6 +51,7 @@ class ProjectStatusUpdate(BaseModel):
 class ProjectOut(BaseModel):
     id: str
     topic_id: str
+    profile: str
     title: str
     status: str
     tags: list[str]
@@ -60,6 +65,7 @@ class ProjectOut(BaseModel):
 class ProjectListOut(BaseModel):
     id: str
     topic_id: str
+    profile: str
     title: str
     status: str
     tags: list[str]
@@ -72,6 +78,14 @@ class ProjectListOut(BaseModel):
 class GenerateIdeasRequest(BaseModel):
     topic_id: str
     count: int = 5
+    profile: Optional[str] = None
+
+
+class ProfileOut(BaseModel):
+    name: str
+    schedule_enabled: bool
+    upload_rendered_cron: str
+    prompts_ideate: str = ""
 
 
 class DashboardOut(BaseModel):

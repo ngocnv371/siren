@@ -8,7 +8,7 @@ import yaml
 
 @dataclass
 class DatabaseConfig:
-    path: str = "./data/auto-streams.db"
+    path: str = "./data/sqlite.db"
 
 
 @dataclass
@@ -93,6 +93,20 @@ class SchedulerConfig:
 
 
 @dataclass
+class ProfilePromptsConfig:
+    ideate: str = ""
+    script: str = ""
+
+
+@dataclass
+class ProfileConfig:
+    name: str = "default"
+    youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
+    schedule: SchedulerConfig = field(default_factory=SchedulerConfig)
+    prompts: ProfilePromptsConfig = field(default_factory=ProfilePromptsConfig)
+
+
+@dataclass
 class AppConfig:
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     temp_dir: str = "./temp"
@@ -105,6 +119,65 @@ class AppConfig:
     server: ServerConfig = field(default_factory=ServerConfig)
     youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
+    profiles: list[ProfileConfig] = field(default_factory=list)
+
+
+def _parse_profiles(data: dict, cfg: AppConfig) -> list[ProfileConfig]:
+    raw_profiles = data.get("profiles")
+    profiles: list[ProfileConfig] = []
+
+    if isinstance(raw_profiles, list) and raw_profiles:
+        for i, raw in enumerate(raw_profiles):
+            if not isinstance(raw, dict):
+                raise ValueError(f"profiles[{i}] must be a mapping")
+
+            name = str(raw.get("name", "")).strip()
+            if not name:
+                raise ValueError(f"profiles[{i}].name is required")
+
+            schedule_raw = raw.get("schedule", {})
+            if isinstance(schedule_raw, str):
+                schedule = SchedulerConfig(enabled=True, upload_rendered_cron=schedule_raw)
+            elif isinstance(schedule_raw, dict):
+                schedule = SchedulerConfig(**schedule_raw)
+            else:
+                raise ValueError(
+                    f"profiles[{i}].schedule must be a cron string or mapping"
+                )
+
+            prompts_raw = raw.get("prompts", {})
+            if isinstance(prompts_raw, dict):
+                prompts = ProfilePromptsConfig(**prompts_raw)
+            else:
+                raise ValueError(f"profiles[{i}].prompts must be a mapping")
+
+            profiles.append(
+                ProfileConfig(
+                    name=name,
+                    youtube=YouTubeConfig(**raw.get("youtube", {})),
+                    schedule=schedule,
+                    prompts=prompts,
+                )
+            )
+    else:
+        # Legacy fallback: synthesize a single profile from top-level sections.
+        profiles.append(
+            ProfileConfig(
+                name="default",
+                youtube=cfg.youtube,
+                schedule=cfg.scheduler,
+                prompts=ProfilePromptsConfig(),
+            )
+        )
+
+    seen: set[str] = set()
+    for p in profiles:
+        key = p.name.lower()
+        if key in seen:
+            raise ValueError(f"Duplicate profile name: {p.name}")
+        seen.add(key)
+
+    return profiles
 
 
 def _build_config(data: dict) -> AppConfig:
@@ -161,7 +234,26 @@ def _build_config(data: dict) -> AppConfig:
     if "scheduler" in data:
         cfg.scheduler = SchedulerConfig(**data["scheduler"])
 
+    cfg.profiles = _parse_profiles(data, cfg)
+
+    if not cfg.profiles:
+        raise ValueError("At least one profile must be configured")
+
     return cfg
+
+
+def get_profile(profile_name: str | None = None) -> ProfileConfig:
+    cfg = get_config()
+    target = profile_name or cfg.profiles[0].name
+    for profile in cfg.profiles:
+        if profile.name == target:
+            return profile
+    available = ", ".join(p.name for p in cfg.profiles)
+    raise ValueError(f"Unknown profile '{target}'. Available profiles: {available}")
+
+
+def get_profile_names() -> list[str]:
+    return [p.name for p in get_config().profiles]
 
 
 _config: Optional[AppConfig] = None

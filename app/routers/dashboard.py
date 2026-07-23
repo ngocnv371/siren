@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session, _get_session_factory
-from app.config import get_config
+from app.config import get_config, get_profile
 from app.models import Project, PROJECT_STATUSES
 from app.schemas import (
     DashboardOut,
@@ -76,6 +76,7 @@ def _build_best_shorts_analysis_prompt(shorts: list[dict[str, object]]) -> str:
 async def get_dashboard(
     session: Session,
     topic_id: Optional[str] = Query(None),
+    profile: Optional[str] = Query(None),
 ):
     stmt = select(Project.status, func.count().label("cnt")).group_by(Project.status)
     if topic_id:
@@ -93,7 +94,8 @@ async def get_dashboard(
     }
 
     cfg = get_config()
-    scheduler_cfg = cfg.scheduler
+    profile_name = profile or cfg.profiles[0].name
+    scheduler_cfg = get_profile(profile_name).schedule
     parse_error: str | None = None
     next_runs: list[str] = []
     try:

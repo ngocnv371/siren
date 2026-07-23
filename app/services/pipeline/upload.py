@@ -12,7 +12,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
 
-from app.config import YouTubeConfig, get_config
+from app.config import YouTubeConfig, get_profile
 from app.database import get_session_factory
 from app.models import Project
 
@@ -52,16 +52,19 @@ def _build_driver(youtube_config: YouTubeConfig) -> webdriver.Firefox:
 
 # ── Core upload logic (blocking — run in thread) ─────────────────────────────
 
-def _do_upload(video_path: str, title: str, description: str, visibility: str) -> str:
+def _do_upload(
+    video_path: str,
+    title: str,
+    description: str,
+    visibility: str,
+    youtube_config: YouTubeConfig,
+) -> str:
     """
     Upload *video_path* to YouTube Shorts and return the public video URL.
 
     Raises on failure so the async wrapper can mark the project as failed.
     """
-    cfg = get_config()
-    profile_path: str = cfg.youtube.firefox_profile
-
-    driver = _build_driver(cfg.youtube)
+    driver = _build_driver(youtube_config)
     try:
         # ── Resolve channel ID ───────────────────────────────────────
         log.info("upload: navigating to YouTube Studio")
@@ -186,6 +189,7 @@ async def run_upload_stage(project_id: str) -> None:
 
         tags: list[str] = project.get_tags()
         base_title: str = project.title
+        profile = get_profile(project.profile)
         _MAX_TITLE = 100
         remaining_tags = list(tags)
         while True:
@@ -197,8 +201,7 @@ async def run_upload_stage(project_id: str) -> None:
             log.debug("upload_stage: title too long (%d), dropped tag %r", len(title), dropped)
         title = title[:_MAX_TITLE]
         description: str = meta.get("summary", "")
-        cfg = get_config()
-        visibility: str = cfg.youtube.visibility
+        visibility: str = profile.youtube.visibility
 
         log.info(
             "upload_stage: video=%s  title=%r  tags=%r  visibility=%s",
@@ -209,7 +212,14 @@ async def run_upload_stage(project_id: str) -> None:
         upload_error: str | None = None
         url: str | None = None
         try:
-            url = await asyncio.to_thread(_do_upload, video_path, title, description, visibility)
+            url = await asyncio.to_thread(
+                _do_upload,
+                video_path,
+                title,
+                description,
+                visibility,
+                profile.youtube,
+            )
             log.info("upload_stage: upload done  elapsed=%s  url=%s", _elapsed(t0), url)
         except Exception as exc:
             upload_error = str(exc)

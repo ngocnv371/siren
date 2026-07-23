@@ -16,8 +16,9 @@ All runtime config lives in **`config.yml`** — no `.env`, no env vars. The YAM
 Key sections:
 - `providers.*` — which AI provider to use per generation type (`gemini | openai | comfy | kittentts`)
 - `comfy.base_url` — ComfyUI HTTP endpoint (default `http://127.0.0.1:8188`)
-- `youtube.firefox_profile` — absolute path to a pre-authenticated Firefox profile for Selenium uploads
-- `scheduler.*` — in-process cron scheduler for auto-uploading rendered projects
+- `profiles[*].youtube.*` — per-profile upload target/channel settings
+- `profiles[*].schedule.*` — per-profile in-process cron scheduler settings
+- `profiles[*].prompts.*` — per-profile ideation/script strategy overrides
 
 ## Architecture overview
 
@@ -77,7 +78,7 @@ Generated assets live under `./temp/{project_id}/` (configurable via `temp_dir`)
 
 ## YouTube upload
 
-Uses Selenium Firefox WebDriver with a pre-authenticated profile (`youtube.firefox_profile` in config). Set `headless: true` for server deployments. The scheduler picks one random `rendered` project on each cron tick and runs `run_upload_stage()`.
+Uses Selenium Firefox WebDriver with a pre-authenticated profile (`profiles[*].youtube.firefox_profile` in config). Set `headless: true` for server deployments. Each enabled profile scheduler picks one random `rendered` project for that profile on each cron tick and runs `run_upload_stage()`.
 
 ## Frontend
 

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 
 from app.database import get_session
+from app.config import get_config, get_profile
 from app.models import Project, Topic
 from app.schemas import ProjectCreate, ProjectListOut, ProjectOut, ProjectStatusUpdate, ProjectUpdate
 from app.services.pipeline import (
@@ -33,6 +34,7 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 async def list_projects(
     session: Session,
     topic_id: Optional[str] = Query(None),
+    profile: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
@@ -44,6 +46,7 @@ async def list_projects(
             load_only(
                 Project.id,
                 Project.topic_id,
+                Project.profile,
                 Project.title,
                 Project.status,
                 Project.tags_json,
@@ -55,6 +58,8 @@ async def list_projects(
     )
     if topic_id:
         stmt = stmt.where(Project.topic_id == topic_id)
+    if profile:
+        stmt = stmt.where(Project.profile == profile)
     if status:
         stmt = stmt.where(Project.status == status)
     if search:
@@ -66,6 +71,7 @@ async def list_projects(
         {
             "id": p.id,
             "topic_id": p.topic_id,
+            "profile": p.profile,
             "title": p.title,
             "status": p.status,
             "tags": p.get_tags(),
@@ -81,9 +87,16 @@ async def create_project(body: ProjectCreate, session: Session):
     topic = await session.get(Topic, body.topic_id)
     if not topic:
         raise HTTPException(404, f"Topic '{body.topic_id}' not found")
+
+    profile_name = _resolve_profile_name(body.profile)
+
+    if topic.profile != profile_name:
+        raise HTTPException(400, "Topic does not belong to the selected profile")
+
     project = Project(
         id=str(uuid.uuid4()),
         topic_id=body.topic_id,
+        profile=profile_name,
         title=body.title,
         status="idea",
         tags_json=__import__("json").dumps(body.tags),
@@ -108,6 +121,8 @@ async def update_project(project_id: str, body: ProjectUpdate, session: Session)
     project = await _get_or_404(session, project_id)
     if body.title is not None:
         project.title = body.title
+    if body.profile is not None:
+        project.profile = _resolve_profile_name(body.profile)
     if body.tags is not None:
         project.set_tags(body.tags)
     if body.metadata is not None:
@@ -155,7 +170,6 @@ async def render_project(project_id: str, session: Session, background_tasks: Ba
     project.touch()
     await session.commit()
     await session.refresh(project)
-    from app.config import get_config
     cfg = get_config()
     proj_dir = os.path.join(cfg.temp_dir, project_id)
     if os.path.isdir(proj_dir):
@@ -250,7 +264,6 @@ async def open_project_folder(project_id: str, session: Session):
     import subprocess
     import sys
     await _get_or_404(session, project_id)
-    from app.config import get_config
     cfg = get_config()
     proj_dir = os.path.abspath(os.path.join(cfg.temp_dir, project_id))
     os.makedirs(proj_dir, exist_ok=True)
@@ -267,7 +280,6 @@ async def serve_audio(project_id: str, filename: str, session: Session):
     if not re.fullmatch(r"[\w\-]+\.wav", filename):
         raise HTTPException(400, "Invalid filename")
     project = await _get_or_404(session, project_id)
-    from app.config import get_config
     cfg = get_config()
     audio_path = os.path.join(cfg.temp_dir, project_id, filename)
     if not os.path.isfile(audio_path):
@@ -281,7 +293,6 @@ async def serve_image(project_id: str, filename: str, session: Session):
     if not re.fullmatch(r"[\w\-]+\.png", filename):
         raise HTTPException(400, "Invalid filename")
     project = await _get_or_404(session, project_id)
-    from app.config import get_config
     cfg = get_config()
     image_path = os.path.join(cfg.temp_dir, project_id, filename)
     if not os.path.isfile(image_path):
@@ -295,7 +306,6 @@ async def serve_video(project_id: str, filename: str, session: Session):
     if not re.fullmatch(r"[\w\-]+\.mp4", filename):
         raise HTTPException(400, "Invalid filename")
     project = await _get_or_404(session, project_id)
-    from app.config import get_config
     cfg = get_config()
     video_path = os.path.join(cfg.temp_dir, project_id, filename)
     if not os.path.isfile(video_path):
@@ -313,6 +323,16 @@ async def _get_or_404(session: AsyncSession, project_id: str) -> Project:
     if project is None:
         raise HTTPException(404, f"Project '{project_id}' not found")
     return project
+
+
+def _resolve_profile_name(profile_name: str | None) -> str:
+    cfg = get_config()
+    target = (profile_name or cfg.profiles[0].name).strip()
+    try:
+        get_profile(target)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return target
 
 
 async def _process_pipeline(project_id: str) -> None:

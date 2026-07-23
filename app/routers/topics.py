@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_config, get_profile
 from app.database import get_session
 from app.models import Project, Topic
 from app.schemas import TopicCreate, TopicOut
@@ -18,22 +19,45 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 
 @router.get("", response_model=list[TopicOut])
-async def list_topics(session: Session):
-    result = await session.execute(select(Topic).order_by(Topic.created_at.asc()))
+async def list_topics(
+    session: Session,
+    profile: Optional[str] = Query(None),
+):
+    if profile:
+        result = await session.execute(
+            select(Topic)
+            .where(Topic.profile == profile)
+            .order_by(Topic.created_at.asc())
+        )
+    else:
+        result = await session.execute(
+            select(Topic).order_by(Topic.created_at.asc())
+        )
     return [t.to_dict() for t in result.scalars().all()]
 
 
 @router.post("", response_model=TopicOut, status_code=201)
 async def create_topic(body: TopicCreate, session: Session):
+    profile_name = (body.profile or "default").strip()
+    try:
+        get_profile(profile_name)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
     topic_text = body.topic.strip()
     if not topic_text:
         raise HTTPException(400, "topic cannot be empty")
-    existing = await session.execute(select(Topic).where(Topic.topic == topic_text))
+    existing = await session.execute(
+        select(Topic).where(
+            (Topic.topic == topic_text) & (Topic.profile == profile_name)
+        )
+    )
     if existing.scalar_one_or_none():
-        raise HTTPException(409, "Topic already exists")
+        raise HTTPException(409, "Topic already exists for this profile")
     topic = Topic(
         id=str(uuid.uuid4()),
         topic=topic_text,
+        profile=profile_name,
         created_at=datetime.now(timezone.utc),
     )
     session.add(topic)

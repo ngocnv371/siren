@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -28,9 +28,11 @@ PROJECT_STATUSES = [
 
 class Topic(Base):
     __tablename__ = "topics"
+    __table_args__ = (UniqueConstraint("topic", "profile", name="uq_topic_profile"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    topic: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+    topic: Mapped[str] = mapped_column(String(512), nullable=False)
+    profile: Mapped[str] = mapped_column(String(128), nullable=False, default="default")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
@@ -43,6 +45,7 @@ class Topic(Base):
         return {
             "id": self.id,
             "topic": self.topic,
+            "profile": self.profile,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -54,6 +57,7 @@ class Project(Base):
     topic_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("topics.id"), nullable=False, index=True
     )
+    profile: Mapped[str] = mapped_column(String(128), nullable=False, default="default", index=True)
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="idea")
     tags_json: Mapped[str] = mapped_column("tags", Text, nullable=False, default="[]")
@@ -95,6 +99,7 @@ class Project(Base):
         return {
             "id": self.id,
             "topic_id": self.topic_id,
+            "profile": self.profile,
             "title": self.title,
             "status": self.status,
             "tags": self.get_tags(),

@@ -190,14 +190,38 @@ A browser-based dashboard served by the FastAPI backend.
 
 A local `config.yml` drives all runtime settings
 
-### Scheduled uploads
+### Profiles
 
-You can enable an in-process upload scheduler in `config.yml`.
+You can define multiple channel strategies under `profiles`. Each profile includes:
+- YouTube upload target settings
+- Its own upload schedule
+- Prompt strategy overrides for idea generation and script writing
 
 ```yml
-scheduler:
-  enabled: true
-  upload_rendered_cron: "0 9 * * *"
+profiles:
+  - name: weird stories
+    youtube:
+      firefox_profile: "C:\\Users\\you\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\xxxx.Profile 1"
+      visibility: unlisted
+      headless: true
+    schedule:
+      enabled: true
+      upload_rendered_cron: "0 9 * * *"
+    prompts:
+      ideate: "Bias ideas toward strange true mysteries and uncanny hooks."
+      script: "Narrate in an eerie documentary tone with concise scenes."
 ```
 
-When the cron fires, the app picks one random project in `rendered` status and runs the existing upload stage for it. The cron uses the server's local time and standard 5-field cron format: `minute hour day month weekday`.
+### Scheduled uploads
+
+Each enabled profile has its own in-process scheduler loop.
+
+```yml
+profiles:
+  - name: weird stories
+    schedule:
+      enabled: true
+      upload_rendered_cron: "0 9 * * *"
+```
+
+When a profile cron fires, the app picks one random project in `rendered` status for that same profile and runs the upload stage with that profile's YouTube settings. The cron uses the server's local time and standard 5-field cron format: `minute hour day month weekday`.

@@ -22,7 +22,7 @@ class _ComfyClient:
     def queue_prompt(self, workflow: dict) -> str:
         resp = requests.post(
             f"{self._base}/prompt",
-            json={"prompt": workflow, "client_id": "auto-streams"},
+            json={"prompt": workflow, "client_id": "siren"},
             timeout=30,
         )
         resp.raise_for_status()

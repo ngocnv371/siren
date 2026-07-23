@@ -5,7 +5,7 @@ import asyncio
 import logging
 import time
 
-from app.config import get_config
+from app.config import get_config, get_profile
 from app.database import get_session_factory
 from app.models import Project, Topic
 from app.services.generation.service import GenerationService
@@ -20,6 +20,13 @@ from ._helpers import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _with_profile_script_prompt(base_prompt: str, profile_script_prompt: str) -> str:
+    prompt = profile_script_prompt.strip()
+    if not prompt:
+        return base_prompt
+    return f"{base_prompt}\n\nProfile script strategy for this channel:\n{prompt}"
 
 
 async def run_text_stage(project_id: str) -> None:
@@ -55,6 +62,7 @@ async def run_text_stage(project_id: str) -> None:
             log.info("text_stage: using existing summary (%d chars)", len(existing_summary))
 
         cfg = get_config()
+        profile = get_profile(project.profile)
         log.info("text_stage: calling text provider=%r model=%r",
                  cfg.providers.text,
                  getattr(cfg.gemini if cfg.providers.text == "gemini" else cfg.openai, "text_model", "?"))
@@ -79,6 +87,7 @@ async def run_text_stage(project_id: str) -> None:
             "  ]\n"
             "}"
         )
+        prompt = _with_profile_script_prompt(prompt, profile.prompts.script)
         log.debug("text_stage: prompt length=%d chars", len(prompt))
 
         svc = GenerationService()

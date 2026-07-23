@@ -94,13 +94,84 @@ function ProjectActions({ project, onApprove, onReject, onRun, onRerender, onDel
   `;
 }
 
+function ProfilePanel({ profiles, selectedProfile, onSelectProfile, topics, currentTopicId, onTopicSelect, onAddTopic, onDeleteTopic, profileTopics }) {
+  const [newTopicText, setNewTopicText] = useState("");
+
+  const handleAddTopic = () => {
+    const text = newTopicText.trim();
+    if (!text || !selectedProfile) return;
+    onAddTopic(text);
+    setNewTopicText("");
+  };
+
+  return html`
+    <div className="profile-sidebar">
+      <div className="profile-sidebar-header">
+        <div className="profile-sidebar-title">Profiles</div>
+      </div>
+      ${profiles.length
+        ? html`
+            <div className="profile-list">
+              ${profiles.map((profile) => html`
+                <div
+                  key=${profile.name}
+                  className=${`profile-card ${profile.name === selectedProfile ? "is-selected" : ""}`}
+                  onClick=${() => onSelectProfile(profile.name)}
+                >
+                  <span className="profile-card-name">${profile.name}</span>
+                </div>
+              `)}
+            </div>
+          `
+        : html`<div className="profile-panel-empty">No profiles configured.</div>`}
+
+      ${selectedProfile ? html`
+        <div className="topics-sidebar-section">
+          <div className="topics-sidebar-header">
+            <div className="topics-sidebar-title">Topics (${profileTopics.length})</div>
+          </div>
+          <div className="topics-sidebar-list">
+            ${profileTopics.length
+              ? profileTopics.map((topic) => html`
+                  <div
+                    key=${topic.id}
+                    className=${`topic-sidebar-item ${topic.id === currentTopicId ? "is-selected" : ""}`}
+                    onClick=${() => onTopicSelect(topic.id, topic.topic)}
+                  >
+                    <span className="topic-sidebar-text" title=${topic.topic}>${topic.topic}</span>
+                    <button className="topic-sidebar-del" title="Delete" onClick=${(e) => {
+                      e.stopPropagation();
+                      onDeleteTopic(topic.id);
+                    }}>x</button>
+                  </div>
+                `)
+              : html`<div className="topic-sidebar-empty">No topics for this profile.</div>`}
+          </div>
+          <div className="topic-sidebar-add">
+            <input
+              className="topic-sidebar-input"
+              value=${newTopicText}
+              placeholder="New topic..."
+              onInput=${(e) => setNewTopicText(e.target.value)}
+              onKeyDown=${(e) => {
+                if (e.key === "Enter") handleAddTopic();
+              }}
+            />
+            <button className="topic-sidebar-btn" onClick=${handleAddTopic}>+</button>
+          </div>
+        </div>
+      ` : null}
+    </div>
+  `;
+}
+
 function App() {
   const initialTopicId = localStorage.getItem("as_topic_id");
   const initialTopicText = localStorage.getItem("as_topic_text");
 
   const [topics, setTopics] = useState([]);
-  const [topicInput, setTopicInput] = useState("");
-  const [topicDropdownOpen, setTopicDropdownOpen] = useState(false);
+  const [profiles, setProfiles] = useState([]);
+  const [selectedProfile, setSelectedProfile] = useState("");
 
   const [currentTopicId, setCurrentTopicId] = useState(initialTopicId || null);
   const [currentTopicText, setCurrentTopicText] = useState(initialTopicText || null);
@@ -131,13 +202,13 @@ function App() {
   const [genCount, setGenCount] = useState(5);
   const [genLoading, setGenLoading] = useState(false);
   const [generatedIdeas, setGeneratedIdeas] = useState([]);
+  const [genPreviewPrompt, setGenPreviewPrompt] = useState("");
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailProject, setDetailProject] = useState(null);
 
   const [toastState, setToastState] = useState({ msg: "", type: "success" });
 
-  const topicRef = useRef(null);
   const refreshTimerRef = useRef(null);
   const toastTimerRef = useRef(null);
   const searchTimerRef = useRef(null);
@@ -190,53 +261,73 @@ function App() {
     return projects.filter((project) => selectedIds.has(project.id)).length;
   }, [projects, selectedIds]);
 
+  const profileTopics = useMemo(() => {
+    if (!selectedProfile) return [];
+    return topics.filter((t) => t.profile === selectedProfile);
+  }, [topics, selectedProfile]);
+
   const loadTopics = useCallback(async () => {
     let loaded = [];
     try {
-      loaded = await api("GET", "/topics");
+      const params = new URLSearchParams();
+      if (selectedProfile) params.set("profile", selectedProfile);
+      const query = params.toString();
+      loaded = query ? await api("GET", `/topics?${query}`) : await api("GET", "/topics");
     } catch {
       loaded = [];
     }
 
     setTopics(loaded);
 
-    if (currentTopicId && currentTopicId !== "all" && !loaded.some((topic) => topic.id === currentTopicId)) {
-      setCurrentTopicId(loaded.length ? "all" : null);
-      setCurrentTopicText(loaded.length ? "All Topics" : null);
+    if (currentTopicId && !loaded.some((topic) => topic.id === currentTopicId)) {
+      setCurrentTopicId(loaded.length ? loaded[0].id : null);
+      setCurrentTopicText(loaded.length ? loaded[0].topic : null);
       return;
     }
 
-    if (!currentTopicId) {
-      if (loaded.length) {
-        setCurrentTopicId("all");
-        setCurrentTopicText("All Topics");
-      } else {
-        setCurrentTopicId(null);
-        setCurrentTopicText(null);
+    if (!currentTopicId && loaded.length) {
+      setCurrentTopicId(loaded[0].id);
+      setCurrentTopicText(loaded[0].topic);
+      return;
+    }
+
+    if (currentTopicId) {
+      const selected = loaded.find((topic) => topic.id === currentTopicId);
+      setCurrentTopicText(selected?.topic || currentTopicText || "Topic selected");
+    }
+  }, [currentTopicId, currentTopicText, selectedProfile]);
+
+  const loadProfiles = useCallback(async () => {
+    try {
+      const loaded = await api("GET", "/profiles");
+      setProfiles(loaded);
+
+      if (!loaded.length) {
+        setSelectedProfile("");
+        return;
       }
-      return;
-    }
 
-    if (currentTopicId === "all") {
-      setCurrentTopicText("All Topics");
-      return;
+      if (!selectedProfile || !loaded.some((profile) => profile.name === selectedProfile)) {
+        const fallback = loaded[0]?.name;
+        setSelectedProfile(fallback);
+      }
+    } catch (e) {
+      showToast(`Profiles error: ${e.message}`, "error");
     }
-
-    const selected = loaded.find((topic) => topic.id === currentTopicId);
-    setCurrentTopicText(selected?.topic || currentTopicText || "Topic selected");
-  }, [currentTopicId, currentTopicText]);
+  }, [selectedProfile, showToast]);
 
   const loadDashboard = useCallback(async () => {
     if (!currentTopicId) return;
     try {
       const params = new URLSearchParams({ limit: "200" });
       if (currentTopicId !== "all") params.set("topic_id", currentTopicId);
+      if (selectedProfile) params.set("profile", selectedProfile);
       const data = await api("GET", `/dashboard?${params.toString()}`);
       setDashboard(data);
     } catch (e) {
       showToast(`Dashboard error: ${e.message}`, "error");
     }
-  }, [currentTopicId, showToast]);
+  }, [currentTopicId, selectedProfile, showToast]);
 
   const loadProjects = useCallback(async () => {
     if (!currentTopicId) return;
@@ -437,21 +528,19 @@ function App() {
     }
   }, [openDetail, showToast]);
 
-  const addTopic = useCallback(async () => {
-    const text = topicInput.trim();
-    if (!text) return;
+  const addTopic = useCallback(async (text) => {
+    const topicText = (text || "").trim();
+    if (!topicText) return;
     try {
-      const created = await api("POST", "/topics", { topic: text });
+      const created = await api("POST", "/topics", { topic: topicText, profile: selectedProfile || "default" });
       setTopics((prev) => [...prev, created]);
-      setTopicInput("");
       setCurrentTopicId(created.id);
       setCurrentTopicText(created.topic);
-      setTopicDropdownOpen(false);
       showToast("Topic created", "success");
     } catch (e) {
       showToast(e.message, "error");
     }
-  }, [topicInput, showToast]);
+  }, [selectedProfile, showToast]);
 
   const deleteTopic = useCallback(async (id) => {
     const topic = topics.find((item) => item.id === id);
@@ -461,8 +550,8 @@ function App() {
       setTopics((prev) => prev.filter((item) => item.id !== id));
       if (currentTopicId === id) {
         const remaining = topics.filter((item) => item.id !== id);
-        setCurrentTopicId(remaining.length ? "all" : null);
-        setCurrentTopicText(remaining.length ? "All Topics" : null);
+        setCurrentTopicId(remaining.length ? remaining[0].id : null);
+        setCurrentTopicText(remaining.length ? remaining[0].topic : null);
       }
       showToast("Topic deleted", "success");
     } catch (e) {
@@ -478,6 +567,7 @@ function App() {
       const ideas = await api("POST", "/ideas/generate", {
         topic_id: currentTopicId,
         count: genCount,
+        profile: selectedProfile || undefined,
       });
       setGeneratedIdeas(ideas);
       showToast(`${ideas.length} ideas generated`, "success");
@@ -488,7 +578,7 @@ function App() {
     } finally {
       setGenLoading(false);
     }
-  }, [activePage, currentTopicId, genCount, loadDashboard, loadProjects, showToast]);
+  }, [activePage, currentTopicId, genCount, loadDashboard, loadProjects, selectedProfile, showToast]);
 
   const analyzeBestShorts = useCallback(async () => {
     const shorts = bestShorts.length ? bestShorts : readBestShortsCache();
@@ -580,6 +670,10 @@ function App() {
   }, [loadTopics]);
 
   useEffect(() => {
+    loadProfiles();
+  }, [loadProfiles]);
+
+  useEffect(() => {
     if (currentTopicId) {
       localStorage.setItem("as_topic_id", currentTopicId);
     } else {
@@ -594,29 +688,30 @@ function App() {
   }, [currentTopicId, currentTopicText]);
 
   useEffect(() => {
-    const onClick = (event) => {
-      if (topicRef.current && !topicRef.current.contains(event.target)) {
-        setTopicDropdownOpen(false);
-      }
-    };
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
-  }, []);
-
-  useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key !== "Escape") return;
-      if (genOpen) setGenOpen(false);
+      if (genOpen) {
+        setGenOpen(false);
+        setGenPreviewPrompt("");
+      }
       else if (detailOpen) {
         setDetailOpen(false);
         setDetailProject(null);
-      } else {
-        setTopicDropdownOpen(false);
       }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [detailOpen, genOpen]);
+
+  useEffect(() => {
+    if (!genOpen || !currentTopicId) return;
+    setGenPreviewPrompt("");
+    const params = new URLSearchParams({ topic_id: currentTopicId, count: String(genCount) });
+    if (selectedProfile) params.set("profile", selectedProfile);
+    api("GET", `/ideas/preview?${params.toString()}`)
+      .then((data) => setGenPreviewPrompt(data.prompt))
+      .catch(() => setGenPreviewPrompt(""));
+  }, [genOpen, currentTopicId, genCount, selectedProfile]);
 
   useEffect(() => {
     if (!currentTopicId) {
@@ -733,75 +828,18 @@ function App() {
   const hasTopic = Boolean(currentTopicId);
   const canGenerate = hasTopic && currentTopicId !== "all";
 
+  const currentProfileIdeate = useMemo(() => {
+    const profile = profiles.find((p) => p.name === selectedProfile);
+    return profile?.prompts_ideate || "";
+  }, [profiles, selectedProfile]);
+
   const detailMeta = detailProject?.metadata || {};
   const scenes = detailMeta.scenes || [];
 
   return html`
     <div>
       <nav>
-        <div className="brand">auto<span>-streams</span></div>
-
-        <div className="topic-ws" ref=${topicRef}>
-          <button
-            className=${`topic-ws-btn ${hasTopic ? "" : "no-topic"}`}
-            onClick=${(event) => {
-              event.stopPropagation();
-              setTopicDropdownOpen((open) => !open);
-            }}
-          >
-            <span className="label">${hasTopic ? currentTopicText || "Topic selected" : "Select a topic..."}</span>
-            <span className="chevron">v</span>
-          </button>
-
-          <div className=${`topic-dropdown ${topicDropdownOpen ? "open" : ""}`}>
-            <div className="topic-dropdown-header">Workspace</div>
-            <div className="topic-list">
-              ${topics.length
-                ? html`
-                    <div
-                      className=${`topic-item ${currentTopicId === "all" ? "selected" : ""}`}
-                      onClick=${() => {
-                        setCurrentTopicId("all");
-                        setCurrentTopicText("All Topics");
-                        setTopicDropdownOpen(false);
-                      }}
-                    >
-                      <span className="topic-text" title="All Topics">All Topics</span>
-                    </div>
-                    ${topics.map((topic) => html`
-                      <div
-                        key=${topic.id}
-                        className=${`topic-item ${topic.id === currentTopicId ? "selected" : ""}`}
-                        onClick=${() => {
-                          setCurrentTopicId(topic.id);
-                          setCurrentTopicText(topic.topic);
-                          setTopicDropdownOpen(false);
-                        }}
-                      >
-                        <span className="topic-text" title=${topic.topic}>${topic.topic}</span>
-                        <button className="topic-del" title="Delete" onClick=${(e) => {
-                          e.stopPropagation();
-                          deleteTopic(topic.id);
-                        }}>x</button>
-                      </div>
-                    `)}
-                  `
-                : html`<div className="topic-empty">No topics yet. Add one below.</div>`}
-            </div>
-            <div className="topic-add-row">
-              <input
-                className="topic-add-input"
-                value=${topicInput}
-                placeholder="New one-sentence topic..."
-                onInput=${(e) => setTopicInput(e.target.value)}
-                onKeyDown=${(e) => {
-                  if (e.key === "Enter") addTopic();
-                }}
-              />
-              <button className="topic-add-btn" onClick=${addTopic}>Add</button>
-            </div>
-          </div>
-        </div>
+        <div className="brand"><span>siren</span></div>
 
         <div className="nav-tabs">
           <button className=${`nav-tab ${activePage === "dashboard" ? "active" : ""}`} onClick=${() => hasTopic ? setActivePage("dashboard") : showToast("Select a topic first", "error")}>Dashboard</button>
@@ -814,14 +852,11 @@ function App() {
           <div className=${`sse-dot ${sseMode}`}></div>
           <span className="sse-label">${sseLabel}</span>
         </div>
-        <button className="btn-generate" disabled=${!canGenerate} onClick=${() => {
-          setGeneratedIdeas([]);
-          setGenCount(5);
-          setGenOpen(true);
-        }}>Generate Ideas</button>
       </nav>
 
-      <main>
+      <div className="page-layout">
+        <${ProfilePanel} profiles=${profiles} selectedProfile=${selectedProfile} onSelectProfile=${setSelectedProfile} topics=${topics} currentTopicId=${currentTopicId} onTopicSelect=${(id, text) => { setCurrentTopicId(id); setCurrentTopicText(text); }} onAddTopic=${addTopic} onDeleteTopic=${deleteTopic} profileTopics=${profileTopics} />
+        <main>
         <div className=${`page ${activePage === "splash" ? "active" : ""}`}>
           <div className="splash">
             <div className="splash-icon">[ ]</div>
@@ -831,6 +866,17 @@ function App() {
         </div>
 
         <div className=${`page ${activePage === "dashboard" ? "active" : ""}`}>
+          <div className="section-header">
+            <div>
+              <h2>${selectedProfile || "default"} · ${currentTopicText || "this topic"}</h2>
+            </div>
+            <button className="btn-generate" disabled=${!canGenerate} onClick=${() => {
+              setGeneratedIdeas([]);
+              setGenCount(5);
+              setGenOpen(true);
+            }}>Generate Ideas</button>
+          </div>
+
           <div className="summary-row">
             <div className="summary-chip"><div className="num">${dashboard?.total ?? "-"}</div><div className="lbl">Total</div></div>
             <div className="summary-chip"><div className="num" style=${{ color: "var(--success)" }}>${statusCounts.rendered ?? "-"}</div><div className="lbl">Rendered</div></div>
@@ -1009,6 +1055,7 @@ function App() {
                         />
                       </th>
                       <th>Title</th>
+                      <th>Profile</th>
                       <th>Status</th>
                       <th>Tags</th>
                       <th>Created</th>
@@ -1033,6 +1080,7 @@ function App() {
                           />
                         </td>
                         <td className="td-title">${project.title}</td>
+                        <td className="td-title">${project.profile || "-"}</td>
                         <td>${badge(project.status)}</td>
                         <td className="td-tags">
                           ${(project.tags || []).length
@@ -1066,6 +1114,13 @@ function App() {
 
           ${generatedIdeas.length === 0
             ? html`
+                <div style=${{ fontSize: ".78rem", color: "var(--primary)", marginBottom: ".75rem", fontWeight: 500 }}>
+                  ${selectedProfile || "default"}
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Full Prompt</label>
+                  <div className="ideate-prompt-text">${genPreviewPrompt || "Loading..."}</div>
+                </div>
                 <div className="form-field">
                   <label className="form-label">How many ideas?</label>
                   <div className="count-options">
@@ -1111,7 +1166,7 @@ function App() {
           <div className="detail-header-info">
             <div className="detail-title">${detailProject?.title || "Project"}</div>
             <div className="detail-meta">
-              ${detailProject ? html`${badge(detailProject.status)} · <span className="text-muted">${detailProject.id}</span> · ${fmtDate(detailProject.created_at)}` : ""}
+              ${detailProject ? html`${badge(detailProject.status)} · <span className="text-muted">${detailProject.profile || "default"}</span> · <span className="text-muted">${detailProject.id}</span> · ${fmtDate(detailProject.created_at)}` : ""}
             </div>
           </div>
           <button className="detail-close" onClick=${() => {
@@ -1248,6 +1303,7 @@ function App() {
                 : null}
             `
           : html`<div className="empty">No content yet.</div>`}
+        </main>
       </div>
 
       <div id="toast" className=${toastState.msg ? `show ${toastState.type}` : ""}>${toastState.msg}</div>

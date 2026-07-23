@@ -13,7 +13,7 @@ from app.config import load_config
 from app.database import init_db
 from app.events import subscribe, unsubscribe
 from app.routers import dashboard, projects
-from app.routers import topics, ideas
+from app.routers import topics, ideas, profiles
 from app.services.scheduler import UploadScheduler
 
 
@@ -26,13 +26,13 @@ logging.basicConfig(
 async def lifespan(app: FastAPI):
     cfg = load_config()
     await init_db()
-    scheduler = UploadScheduler(cfg.scheduler)
+    scheduler = UploadScheduler(cfg)
     await scheduler.start()
     yield
     await scheduler.stop()
 
 
-app = FastAPI(title="auto-streams", lifespan=lifespan)
+app = FastAPI(title="siren", lifespan=lifespan)
 
 _static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=_static_dir), name="static")
@@ -41,6 +41,7 @@ app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(topics.router, prefix="/api/topics", tags=["topics"])
 app.include_router(ideas.router, prefix="/api/ideas", tags=["ideas"])
+app.include_router(profiles.router, prefix="/api/profiles", tags=["profiles"])
 
 
 @app.get("/", include_in_schema=False)

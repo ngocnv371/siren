@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_config, get_profile
 from app.database import get_session
 from app.models import Project, Topic
 from app.schemas import GenerateIdeasRequest, ProjectOut
@@ -39,6 +40,13 @@ def _build_prompt(topic: str, count: int) -> str:
     )
 
 
+def _with_profile_prompt(base_prompt: str, profile_ideate_prompt: str) -> str:
+    prompt = profile_ideate_prompt.strip()
+    if not prompt:
+        return base_prompt
+    return f"{base_prompt}\n\nProfile strategy for this channel:\n{prompt}"
+
+
 def _parse_ideas(raw: str) -> list[dict]:
     raw = raw.strip()
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -59,6 +67,27 @@ def _parse_ideas(raw: str) -> list[dict]:
     return ideas
 
 
+@router.get("/preview")
+async def preview_ideas(session: Session, topic_id: str, count: int = 5, profile: str | None = None):
+    if count < 1 or count > 20:
+        raise HTTPException(400, "count must be between 1 and 20")
+
+    result = await session.execute(select(Topic).where(Topic.id == topic_id))
+    topic = result.scalar_one_or_none()
+    if not topic:
+        raise HTTPException(404, "Topic not found")
+
+    cfg = get_config()
+    profile_name = (profile or cfg.profiles[0].name).strip()
+    try:
+        profile = get_profile(profile_name)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    prompt = _with_profile_prompt(_build_prompt(topic.topic, count), profile.prompts.ideate)
+    return {"prompt": prompt}
+
+
 @router.post("/generate", response_model=list[ProjectOut])
 async def generate_ideas(body: GenerateIdeasRequest, session: Session):
     if body.count < 1 or body.count > 20:
@@ -69,8 +98,18 @@ async def generate_ideas(body: GenerateIdeasRequest, session: Session):
     if not topic:
         raise HTTPException(404, "Topic not found")
 
+    cfg = get_config()
+    profile_name = (body.profile or cfg.profiles[0].name).strip()
+    try:
+        profile = get_profile(profile_name)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    if topic.profile != profile_name:
+        raise HTTPException(400, "Topic does not belong to the selected profile")
+
     svc = GenerationService()
-    prompt = _build_prompt(topic.topic, body.count)
+    prompt = _with_profile_prompt(_build_prompt(topic.topic, body.count), profile.prompts.ideate)
     try:
         raw = await asyncio.to_thread(svc.generate_text, prompt, _SYSTEM_PROMPT)
     except Exception as e:
@@ -91,6 +130,7 @@ async def generate_ideas(body: GenerateIdeasRequest, session: Session):
         p = Project(
             id=str(uuid.uuid4()),
             topic_id=body.topic_id,
+            profile=profile.name,
             title=idea["title"],
             status="idea",
             tags_json="[]",
