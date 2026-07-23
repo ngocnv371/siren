@@ -87,6 +87,7 @@ class ProfileOut(BaseModel):
     schedule_enabled: bool
     upload_rendered_cron: str
     prompts_ideate: str = ""
+    prompts_script: str = ""
 
 
 class DashboardOut(BaseModel):

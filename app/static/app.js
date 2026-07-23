@@ -836,6 +836,11 @@ function App() {
     return profile?.prompts_ideate || "";
   }, [profiles, selectedProfile]);
 
+  const currentProfileScript = useMemo(() => {
+    const profile = profiles.find((p) => p.name === selectedProfile);
+    return profile?.prompts_script || "";
+  }, [profiles, selectedProfile]);
+
   const detailMeta = detailProject?.metadata || {};
   const scenes = detailMeta.scenes || [];
 
@@ -906,6 +911,16 @@ function App() {
             </div>
             ${schedule.parse_error ? html`<div className="schedule-error">${schedule.parse_error}</div>` : null}
           </div>
+
+          ${currentProfileScript ? html`
+          <h2>Script Prompt</h2>
+          <div className="schedule-card">
+            <div className="schedule-row">
+              <span className="schedule-label">Strategy</span>
+              <span className="schedule-value script-prompt-value">${currentProfileScript}</span>
+            </div>
+          </div>
+          ` : null}
 
           <h2>Pipeline</h2>
           <div className="pipeline">

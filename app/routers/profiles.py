@@ -18,6 +18,7 @@ async def list_profiles() -> list[ProfileOut]:
             schedule_enabled=profile.schedule.enabled,
             upload_rendered_cron=profile.schedule.upload_rendered_cron,
             prompts_ideate=profile.prompts.ideate,
+            prompts_script=profile.prompts.script,
         )
         for profile in cfg.profiles
     ]

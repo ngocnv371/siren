@@ -228,6 +228,13 @@ main { flex: 1; padding: 1.5rem; max-width: 1400px; width: 100%; margin: 0 auto;
   color: var(--text);
 }
 
+.script-prompt-value {
+  font-size: .82rem;
+  color: var(--text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 .schedule-runs {
   display: flex;
   flex-wrap: wrap;
