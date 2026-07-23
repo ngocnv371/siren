@@ -5,7 +5,7 @@ Status flow:
   scenes_ready  → [tts_stage]    → tts_ready     (TTS per scene)
   tts_ready     → [music_stage]  → music_ready   (background music)
   music_ready   → [image_stage]  → images_ready
-  images_ready  → [render_stage] → clips_ready → done
+  images_ready  → [render_stage] → rendered
 
 Per-asset reruns (no status change):
   any           → [run_scene_image]  re-gen image for one scene

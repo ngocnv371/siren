@@ -1,4 +1,4 @@
-# auto-streams
+# Siren
 
 A tool to automate bulk production of YouTube Shorts.
 
@@ -15,59 +15,52 @@ A tool to automate bulk production of YouTube Shorts.
 Each project moves through a pipeline. Steps can be batched across projects to maximize throughput (e.g., run all image generation back-to-back before switching ComfyUI models).
 
 ```
-[Idea Pool]
+ [Idea Pool]
     │
     ▼
-[approved]  ─── user approves idea ───────────────────────────────┐
-    │                                                              │
-    ▼                                                              │
-[content_ready]  ─── generate: transcript, narrator,              │
-    │                           music prompt, visual_guide         │
-    ▼                                                              │
-[scenes_ready]   ─── generate: scenes[] from transcript           │
-    │                           + narrator + visual_guide          │
-    ▼                                                              │
-[tts_ready]      ─── generate: voiceover audio + alignment        │
-    │                           (sets duration for music)          │
-    ├──────────────────────┐                                       │
-    ▼                      ▼                                       │
-[music gen]          [image gen]   ← run in parallel              │
- generate background   image per scene                             │
- music (needs duration)                                            │
-    └──────────────────────┘                                       │
-                 │  both done                                       │
-                 ▼                                                  │
-[media_ready]    ─── music + all images complete                   │
-    │                                                              │
-    ▼                                                              │
-[clips_ready]    ─── render: clip per scene (audio + image        │
-    │                         + subtitles + Ken Burns)             │
-    ▼                                                              │
-[rendered]       ─── stitch all clips → final video               │
-    │                                                              │
-    ▼                                                              │
-[failed]  ◄──────────── any unrecoverable error ──────────────────┘
+ [approved]  ─── user approves idea
+    │
+    ▼
+ [content_ready]  ─── generate: transcript, narrator,
+    │                           music prompt, visual_guide
+    ▼
+ [scenes_ready]   ─── generate: scenes[] from transcript
+    │                           + narrator + visual_guide
+    ▼
+ [tts_ready]      ─── generate: voiceover audio + alignment
+    │                           (sets duration for music)
+    ▼
+ [music_ready]    ─── generate: background music
+    │
+    ▼
+ [images_ready]   ─── generate: image per scene
+    │
+    ▼
+ [rendered]       ─── stitch all clips → final video
+    │
+    ▼
+ [uploaded]       ─── upload
+
+ [failed]  ◄──────────── any unrecoverable error
 ```
 
 ### Batch queuing
 
 Because ComfyUI benefits from keeping models loaded, steps are collected and executed in batch:
 
-| Queue | Collected from | Advances to |
-|-------|----------------|-------------|
-| `text_queue` | `approved` | `scenes_ready` |
-| `tts_queue` | `scenes_ready` | `tts_ready` |
-| `music_queue` | `tts_ready` | `media_ready` (when images also done) |
-| `image_queue` | `tts_ready` | `media_ready` (when music also done) |
-| `render_queue` | `media_ready` | `rendered` |
-
-Music and image queues can be run simultaneously — whichever finishes last advances the project to `media_ready`.
+| Queue          | Collected from | Advances to    |
+| -------------- | -------------- | -------------- |
+| `text_queue`   | `approved`     | `scenes_ready` |
+| `tts_queue`    | `scenes_ready` | `tts_ready`    |
+| `music_queue`  | `tts_ready`    | `music_ready`  |
+| `image_queue`  | `music_ready`  | `images_ready` |
+| `render_queue` | `images_ready` | `rendered`     |
 
 ## Projects
 
 ### Status lifecycle
 
-`idea` → `approved` → `content_ready` → `scenes_ready` → `tts_ready` → `media_ready` (music + images in parallel) → `clips_ready` → `rendered` → `uploaded` | `failed`
+`idea` → `approved` → `content_ready` → `scenes_ready` → `tts_ready` → `music_ready` → `images_ready` → `rendered` → `uploaded` | `failed`
 
 ### Data model
 
@@ -77,28 +70,28 @@ interface Project {
   title: string;
   status: ProjectStatus;
   tags: string[];
-  metadata: Metadata;        // stored as JSON in SQLite
+  metadata: Metadata; // stored as JSON in SQLite
   created_at: Date;
   updated_at: Date;
 }
 
 interface Metadata {
   // Content
-  summary?: string;                       // Idea / story brief
-  transcript?: string;                    // Full narration text
+  summary?: string; // Idea / story brief
+  transcript?: string; // Full narration text
   word_count?: number;
 
   // Generation prompts
-  narrator?: string;                      // Voice persona / style description
-  music?: string;                         // Music generation prompt
-  visual_guide?: string;                  // Style guide for image prompts
+  narrator?: string; // Voice persona / style description
+  music?: string; // Music generation prompt
+  visual_guide?: string; // Style guide for image prompts
 
   // Project-level media
-  music_url?: string;                     // Generated background music file
-  audio_url?: string;                     // Full narration audio (concatenated)
-  video_url?: string;                     // Final compiled video
-  thumbnail_url?: string;                 // Cover image
-  duration?: number;                      // Total duration in seconds
+  music_url?: string; // Generated background music file
+  audio_url?: string; // Full narration audio (concatenated)
+  video_url?: string; // Final compiled video
+  thumbnail_url?: string; // Cover image
+  duration?: number; // Total duration in seconds
   selected_cover_image_index?: number;
 
   // Scenes
@@ -109,19 +102,19 @@ interface Metadata {
 }
 
 interface Scene {
-  voiceover: string;                      // Narration text for this scene
-  image_prompt: string;                   // Image generation prompt
+  voiceover: string; // Narration text for this scene
+  image_prompt: string; // Image generation prompt
 
   // Generated assets (populated during pipeline)
-  audio_url?: string;                     // Scene voiceover audio file
-  image_url?: string;                     // Scene image file
-  clip_url?: string;                      // Rendered scene clip
-  duration?: number;                      // Scene audio duration in seconds
+  audio_url?: string; // Scene voiceover audio file
+  image_url?: string; // Scene image file
+  clip_url?: string; // Rendered scene clip
+  duration?: number; // Scene audio duration in seconds
 }
 
 interface ProjectConfig {
   image?: {
-    aspectRatio?: string;                 // e.g. "9:16"
+    aspectRatio?: string; // e.g. "9:16"
   };
   narration?: {
     voice?: string;
@@ -157,12 +150,12 @@ temp/{project_id}/
 
 Configurable per generation type. The active provider for each type is set in the YAML config.
 
-| Type | Providers |
-|------|-----------|
+| Type       | Providers                              |
+| ---------- | -------------------------------------- |
 | Text (LLM) | `gemini`, `openai` (OpenAI-compatible) |
-| Image | `gemini`, `comfy` |
-| TTS | `gemini`, `kittentts` |
-| Music | `comfy` |
+| Image      | `gemini`, `comfy`                      |
+| TTS        | `gemini`, `kittentts`                  |
+| Music      | `comfy`                                |
 
 ### ComfyUI integration
 
@@ -176,11 +169,13 @@ ComfyUI workflows are defined as JSON files under `./assets/`. The placeholder `
 A browser-based dashboard served by the FastAPI backend.
 
 **Views:**
+
 - **Dashboard** — overall pipeline progress; per-queue status; counts by project status
 - **Projects list** — sortable/filterable table of all projects with inline status badges
 - **Project detail** — per-scene breakdown; preview generated assets; trigger individual regeneration steps; approve/reject ideas
 
 **Actions available from UI:**
+
 - Approve / reject idea
 - Trigger a specific pipeline step (or full run) for a project
 - Start / pause batch queues
@@ -193,6 +188,7 @@ A local `config.yml` drives all runtime settings
 ### Profiles
 
 You can define multiple channel strategies under `profiles`. Each profile includes:
+
 - YouTube upload target settings
 - Its own upload schedule
 - Prompt strategy overrides for idea generation and script writing

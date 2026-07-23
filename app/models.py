@@ -18,8 +18,6 @@ PROJECT_STATUSES = [
     "tts_ready",
     "music_ready",
     "images_ready",
-    "media_ready",
-    "clips_ready",
     "rendered",
     "uploaded",
     "failed",

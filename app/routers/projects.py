@@ -162,10 +162,10 @@ async def run_project_pipeline(project_id: str, session: Session, background_tas
 
 @router.post("/{project_id}/render", response_model=ProjectOut)
 async def render_project(project_id: str, session: Session, background_tasks: BackgroundTasks):
-    """Force a re-render stage. Accepts failed, images_ready, or clips_ready projects."""
+    """Force a re-render stage. Accepts failed or images_ready projects."""
     project = await _get_or_404(session, project_id)
-    if project.status not in ("rendered", "failed", "images_ready", "clips_ready"):
-        raise HTTPException(400, "Project must be in 'failed', 'images_ready', or 'clips_ready' status to re-render")
+    if project.status not in ("rendered", "failed", "images_ready"):
+        raise HTTPException(400, "Project must be in 'failed' or 'images_ready' status to re-render")
     project.status = "images_ready"
     project.touch()
     await session.commit()

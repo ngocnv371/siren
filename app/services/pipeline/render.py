@@ -1,4 +1,4 @@
-"""Stage 4 — render  (media_ready / clips_ready → done)."""
+"""Stage 4 — render  (images_ready → done)."""
 from __future__ import annotations
 
 import asyncio
@@ -141,16 +141,16 @@ def _mix_music(video_path: str, music_path: str, out_path: str) -> None:
 
 
 async def run_render_stage(project_id: str) -> None:
-    """Render per-scene clips then assemble the final video. images_ready / media_ready / clips_ready → done."""
+    """Render per-scene clips then assemble the final video."""
     from app.events import inc_active, dec_active, emit as _emit_event
     log.info("render_stage start project=%s", project_id)
     inc_active()
     _emit("Render stage started", project_id=project_id, stage="render")
     try:
         project = await _load_project(project_id)
-        if project is None or project.status not in ("images_ready", "media_ready", "clips_ready"):
+        if project is None or project.status != "images_ready":
             _emit(
-                "render_stage: project %s not in images_ready/media_ready/clips_ready (status=%s)",
+                "render_stage: project %s not in images_ready (status=%s)",
                 project_id, project.status if project else "not found",
             )
             return
@@ -230,7 +230,7 @@ async def run_render_stage(project_id: str) -> None:
             clip_paths.append(clip_path)
             updated_scenes.append({**scene, "clip_path": clip_path})
 
-        # Persist intermediate clips_ready state
+        # Persist updated scenes with clip paths
         factory = get_session_factory()
         async with factory() as session:
             p = await session.get(Project, project_id)
@@ -240,7 +240,6 @@ async def run_render_stage(project_id: str) -> None:
             m = p.get_metadata()
             m["scenes"] = updated_scenes
             p.set_metadata(m)
-            p.status = "clips_ready"
             p.touch()
             await session.commit()
 

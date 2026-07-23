@@ -56,11 +56,11 @@ Stages run sequentially within a single project, but across projects they're **b
 |-------|-------------|-----------|
 | `text_queue` | approved | scenes_ready |
 | `tts_queue` | scenes_ready | tts_ready |
-| `music_queue` | tts_ready | media_ready (waits for images) |
-| `image_queue` | tts_ready | media_ready (waits for music) |
-| `render_queue` | media_ready | clips_ready → rendered |
+| `music_queue` | tts_ready | music_ready (waits for images) |
+| `image_queue` | tts_ready | images_ready (waits for music) |
+| `render_queue` | images_ready | rendered |
 
-Music and image queues run in parallel; the last-completing one advances to `media_ready`.
+Music and image queues run in parallel; they set `music_ready` / `images_ready` independently.
 
 **Full pipeline** (`run_full_pipeline`) runs all stages sequentially for a single project: text → tts → [music+image] → render → upload.
 
@@ -68,8 +68,7 @@ Music and image queues run in parallel; the last-completing one advances to `med
 
 ```
 idea → approved → content_ready → scenes_ready → tts_ready
-  → music_ready / images_ready (parallel) → media_ready
-  → clips_ready → rendered → uploaded | failed
+  → music_ready / images_ready (parallel) → rendered → uploaded | failed
 ```
 
 Any unrecoverable error transitions a project to `failed`.

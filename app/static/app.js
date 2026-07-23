@@ -12,8 +12,6 @@ const PIPELINE_STATUSES = [
   "tts_ready",
   "music_ready",
   "images_ready",
-  "media_ready",
-  "clips_ready",
   "rendered",
   "uploaded",
   "failed",
@@ -32,8 +30,6 @@ function statusColor(status) {
     tts_ready: "var(--s-tts_ready)",
     music_ready: "var(--s-music_ready)",
     images_ready: "var(--s-images_ready)",
-    media_ready: "var(--s-media_ready)",
-    clips_ready: "var(--s-clips_ready)",
     rendered: "var(--s-rendered)",
     uploaded: "var(--s-uploaded)",
     failed: "var(--s-failed)",
@@ -86,7 +82,7 @@ function ProjectActions({ project, onApprove, onReject, onRun, onRerender, onDel
       ${project.status === "approved"
         ? html`<button className="btn-sm run" onClick=${() => onRun(project.id)}>Run</button>`
         : null}
-      ${["rendered", "uploaded", "failed", "media_ready", "images_ready", "clips_ready"].includes(project.status)
+      ${["rendered", "uploaded", "failed", "images_ready"].includes(project.status)
         ? html`<button className="btn-sm rerender" onClick=${() => onRerender(project.id)}>Re-render</button>`
         : null}
       <button className="btn-sm delete" onClick=${() => onDelete(project.id)}>Delete</button>
@@ -1199,7 +1195,7 @@ function App() {
                 ${detailProject.status === "idea" ? html`<button className="btn-sm approve" onClick=${() => approveProject(detailProject.id)}>Approve</button>` : null}
                 ${["idea", "approved"].includes(detailProject.status) ? html`<button className="btn-sm reject" onClick=${() => rejectProject(detailProject.id)}>Reject</button>` : null}
                 ${detailProject.status === "approved" ? html`<button className="btn-sm run" onClick=${() => runPipeline(detailProject.id)}>Run Pipeline</button>` : null}
-                ${["rendered", "failed", "media_ready", "images_ready", "clips_ready"].includes(detailProject.status)
+                ${["rendered", "failed", "images_ready"].includes(detailProject.status)
                   ? html`<button className="btn-sm rerender" onClick=${() => reRender(detailProject.id)}>Re-render</button>`
                   : null}
                 ${detailProject.status === "rendered"
