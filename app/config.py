@@ -31,6 +31,7 @@ class OpenAIConfig:
 class ComfyWorkflows:
     image: str = "./assets/comfy-zimage.json"
     music: str = "./assets/comfy-music.json"
+    tts: str = "./assets/comfy-tts-kokoro.json"
 
 
 @dataclass

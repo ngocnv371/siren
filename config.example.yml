@@ -8,7 +8,6 @@ providers:
   image: comfy          # gemini | comfy
   tts: kittentts        # gemini | kittentts
   music: comfy          # comfy
-  tts_delay: 3          # seconds to wait between per-scene TTS calls (increase if hitting rate limits)
 
 gemini:
   api_key: YOUR_KEY
@@ -27,6 +26,7 @@ comfy:
   workflows:
     image: ./assets/comfy-zimage.json
     music: ./assets/comfy-music.json
+    tts: ./assets/comfy-tts-kokoro.json
 
 kittentts:
   model: KittenML/kitten-tts-mini-0.8               # Piper voice model

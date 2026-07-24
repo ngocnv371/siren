@@ -7,7 +7,7 @@ import time
 import requests
 
 from app.config import ComfyConfig
-from .base import ImageProvider, MusicProvider
+from .base import ImageProvider, MusicProvider, TTSProvider
 
 _POLL_INTERVAL = 2.0   # seconds between history polls
 _POLL_TIMEOUT = 600    # max seconds to wait per job
@@ -127,3 +127,28 @@ class ComfyMusicProvider(MusicProvider):
                 return self._client.download(aud["filename"], aud.get("subfolder", ""))
 
         raise RuntimeError("ComfyUI music workflow produced no audio output")
+
+
+
+class ComfyTTSProvider(TTSProvider):
+    def __init__(self, config: ComfyConfig) -> None:
+        self._config = config
+        self._client = _ComfyClient(config.base_url)
+
+    def synthesize(self, text: str, narrator: str | None = None, voice: str | None = None, speed: float = 1.0) -> bytes:
+        workflow = _load_workflow(self._config.workflows.tts)
+        workflow = _apply_placeholders(workflow, {
+            "__PROMPT__": text,
+        })
+        _randomise_seeds(workflow)
+
+        prompt_id = self._client.queue_prompt(workflow)
+        outputs = self._client.wait_for_result(prompt_id)
+
+        for node_output in outputs.values():
+            print(f"output: {node_output}")
+            if "audio" in node_output:
+                aud = node_output["audio"][0]
+                return self._client.download(aud["filename"], aud.get("subfolder", ""))
+
+        raise RuntimeError("ComfyUI TTS workflow produced no audio output")

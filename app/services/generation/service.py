@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app.config import AppConfig, get_config
 from .providers.base import ImageProvider, MusicProvider, TextProvider, TTSProvider
-from .providers.comfy import ComfyImageProvider, ComfyMusicProvider
+from .providers.comfy import ComfyImageProvider, ComfyMusicProvider, ComfyTTSProvider
 from .providers.gemini import GeminiImageProvider, GeminiTextProvider, GeminiTTSProvider
 from .providers.kittentts import KittenTTSProvider
 from .providers.openai_compat import OpenAITextProvider
@@ -44,11 +44,13 @@ class GenerationService:
 
     def _build_tts_provider(self) -> TTSProvider:
         name = self._config.providers.tts
+        if name == "comfy":
+            return ComfyTTSProvider(self._config.comfy)
         if name == "gemini":
             return GeminiTTSProvider(self._config.gemini)
         if name == "kittentts":
             return KittenTTSProvider(self._config.kittentts)
-        raise ValueError(f"Unknown TTS provider: {name!r}. Choose 'gemini' or 'kittentts'.")
+        raise ValueError(f"Unknown TTS provider: {name!r}. Choose 'gemini', 'comfy' or 'kittentts'.")
 
     def _build_music_provider(self) -> MusicProvider:
         name = self._config.providers.music

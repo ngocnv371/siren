@@ -1,0 +1,66 @@
+{
+  "1": {
+    "inputs": {
+      "text": "__PROMPT__",
+      "speed": 1,
+      "lang": "English",
+      "speaker": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "KokoroGenerator",
+    "_meta": {
+      "title": "Kokoro Generator"
+    }
+  },
+  "2": {
+    "inputs": {
+      "filename_prefix": "audio/ComfyUI",
+      "format": "flac",
+      "audio": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "SaveAudioAdvanced",
+    "_meta": {
+      "title": "Save Audio (Advanced)"
+    }
+  },
+  "4": {
+    "inputs": {
+      "speaker_name": "af_heart"
+    },
+    "class_type": "KokoroSpeaker",
+    "_meta": {
+      "title": "Kokoro Speaker"
+    }
+  },
+  "5": {
+    "inputs": {
+      "weight": 0.6,
+      "speaker_a": [
+        "4",
+        0
+      ],
+      "speaker_b": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "KokoroSpeakerCombiner",
+    "_meta": {
+      "title": "Kokoro Speaker Combiner"
+    }
+  },
+  "6": {
+    "inputs": {
+      "speaker_name": "af_nicole"
+    },
+    "class_type": "KokoroSpeaker",
+    "_meta": {
+      "title": "Kokoro Speaker"
+    }
+  }
+}
