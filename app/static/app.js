@@ -207,6 +207,8 @@ function App() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailProject, setDetailProject] = useState(null);
 
+  const [previewImage, setPreviewImage] = useState(null);
+
   const [toastState, setToastState] = useState({ msg: "", type: "success" });
 
   const refreshTimerRef = useRef(null);
@@ -693,6 +695,9 @@ function App() {
       if (genOpen) {
         setGenOpen(false);
         setGenPreviewPrompt("");
+      }
+      else if (previewImage) {
+        setPreviewImage(null);
       }
       else if (detailOpen) {
         setDetailOpen(false);
@@ -1220,6 +1225,15 @@ function App() {
                   `
                 : null}
 
+              ${detailMeta.error
+                ? html`
+                    <div className="detail-section">
+                      <div className="detail-section-title">Error</div>
+                      <div className="meta-val pre detail-error-box">${String(detailMeta.error)}</div>
+                    </div>
+                  `
+                : null}
+
               <div className="detail-section">
                 <div className="detail-section-title">Metadata</div>
                 <div className="meta-grid">
@@ -1231,11 +1245,10 @@ function App() {
                     "Visual guide": detailMeta.visual_guide,
                     Duration: detailMeta.duration != null ? `${detailMeta.duration}s` : null,
                     "Word count": detailMeta.word_count,
-                    Error: detailMeta.error,
                   })
                     .filter((entry) => entry[1] != null && String(entry[1]).trim() !== "")
                     .map(([key, value]) => html`
-                      <div key=${key} className=${`meta-item ${key === "Error" ? "meta-item-error" : ""}`}>
+                      <div key=${key} className="meta-item">
                         <div className="meta-key">${key}</div>
                         <div className="meta-val pre">${String(value)}</div>
                       </div>
@@ -1249,6 +1262,24 @@ function App() {
                       <div className="detail-section-title">Tags</div>
                       <div className="td-tags">
                         ${detailProject.tags.map((tag) => html`<span key=${tag} className="tag">${tag}</span>`)}
+                      </div>
+                    </div>
+                  `
+                : null}
+
+              ${detailMeta.music_path
+                ? html`
+                    <div className="detail-section">
+                      <div className="detail-section-title">Background Music</div>
+                      <div className="music-audio">
+                        <audio
+                          controls
+                          preload="none"
+                          src=${`/api/projects/${detailProject.id}/audio/${encodeURIComponent(detailMeta.music_path.replace(/\\/g, "/").split("/").pop())}`}
+                        ></audio>
+                      </div>
+                      <div style=${{ marginTop: ".4rem" }}>
+                        <button className="btn-sm rerun-asset" onClick=${() => rerunMusic(detailProject.id)}>Regenerate Music</button>
                       </div>
                     </div>
                   `
@@ -1270,8 +1301,7 @@ function App() {
                           return html`
                             <div key=${index} className="scene-card">
                               ${imageFile
-                                ? html`
-                                    <div className="scene-thumb">
+                                ? html` <div className="scene-thumb" onClick=${() => setPreviewImage(`/api/projects/${detailProject.id}/image/${encodeURIComponent(imageFile)}`)}>
                                       <img loading="lazy" src=${`/api/projects/${detailProject.id}/image/${encodeURIComponent(imageFile)}`} alt=${`Scene ${index + 1}`} />
                                     </div>
                                   `
@@ -1298,27 +1328,13 @@ function App() {
                     </div>
                   `
                 : null}
-
-              ${detailMeta.music_path
-                ? html`
-                    <div className="detail-section">
-                      <div className="detail-section-title">Background Music</div>
-                      <div className="music-audio">
-                        <audio
-                          controls
-                          preload="none"
-                          src=${`/api/projects/${detailProject.id}/audio/${encodeURIComponent(detailMeta.music_path.replace(/\\/g, "/").split("/").pop())}`}
-                        ></audio>
-                      </div>
-                      <div style=${{ marginTop: ".4rem" }}>
-                        <button className="btn-sm rerun-asset" onClick=${() => rerunMusic(detailProject.id)}>Regenerate Music</button>
-                      </div>
-                    </div>
-                  `
-                : null}
             `
           : html`<div className="empty">No content yet.</div>`}
         </main>
+      </div>
+
+      <div className=${`image-preview-overlay ${previewImage ? "open" : ""}`} onClick=${() => setPreviewImage(null)}>
+        ${previewImage ? html`<img src=${previewImage} alt="Preview" />` : null}
       </div>
 
       <div id="toast" className=${toastState.msg ? `show ${toastState.type}` : ""}>${toastState.msg}</div>
