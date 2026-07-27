@@ -72,11 +72,11 @@
   },
   "94": {
     "inputs": {
-      "tags": "Cinematic and minimalist. It begins with a low, somber cello melody and a steady, rhythmic pulse. As the narration shifts toward the mention of the wedding, a delicate piano layer enters, creating a bittersweet yet resolved atmosphere.",
+      "tags": "__PROMPT__",
       "lyrics": "",
       "seed": 31,
       "bpm": 190,
-      "duration": 81,
+      "duration": 1900,
       "timesignature": "4",
       "language": "en",
       "keyscale": "E minor",
@@ -98,7 +98,7 @@
   },
   "98": {
     "inputs": {
-      "seconds": 81,
+      "seconds": 1900,
       "batch_size": 1
     },
     "class_type": "EmptyAceStep1.5LatentAudio",

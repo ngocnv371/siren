@@ -108,7 +108,7 @@ async def run_tts_stage(project_id: str) -> None:
         # stage knows which file to slice segments from.
         updated_scenes = [{**s, "audio_path": combined_path} for s in updated_scenes]
 
-        duration = int(round(sum(s.get("duration", 0) for s in updated_scenes))) or 60
+        duration = int(round(_audio_duration(combined_path, 60)))
 
         factory = get_session_factory()
         async with factory() as session:

@@ -203,7 +203,7 @@ class ComfyMusicProvider(MusicProvider):
         workflow = _load_workflow(self._config.workflows.music)
         workflow = _apply_placeholders(workflow, {
             "__PROMPT__": prompt,
-            "__DURATION__": str(duration),
+            "1900": str(duration),
         })
         _randomise_seeds(workflow)
 

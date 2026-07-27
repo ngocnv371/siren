@@ -120,7 +120,6 @@ async def rerun_music(project_id: str) -> None:
         music_prompt = meta.get("music") or "calm ambient background music"
         duration = int(
             meta.get("duration")
-            or round(sum(s.get("duration", 0) for s in meta.get("scenes", [])))
             or 60
         )
         log.info(
