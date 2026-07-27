@@ -30,8 +30,13 @@ _DEFAULT_HEIGHT = 1920
 
 
 def _resolve_dimensions(profile_name: str) -> tuple[int, int]:
-    """Return (width, height) based on the profile's form setting."""
+    """Return (width, height) based on the profile's aspect setting."""
     profile = get_profile(profile_name)
+    if profile.aspect == "landscape":
+        return _DEFAULT_HEIGHT, _DEFAULT_WIDTH
+    if profile.aspect == "portrait":
+        return _DEFAULT_WIDTH, _DEFAULT_HEIGHT
+    # auto: derive from form
     if profile.form == "long":
         return _DEFAULT_HEIGHT, _DEFAULT_WIDTH
     return _DEFAULT_WIDTH, _DEFAULT_HEIGHT
@@ -119,8 +124,8 @@ async def run_image_stage(project_id: str) -> None:
         out_dir = _project_dir(project_id)
         svc = GenerationService()
         img_width, img_height = _resolve_dimensions(project.profile)
-        log.info("image_stage: profile=%r  form=%r  dimensions=%dx%d",
-                 project.profile, get_profile(project.profile).form, img_width, img_height)
+        log.info("image_stage: profile=%r  form=%r  aspect=%r  dimensions=%dx%d",
+                 project.profile, get_profile(project.profile).form, get_profile(project.profile).aspect, img_width, img_height)
 
         for i, scene in enumerate(scenes):
             await _generate_scene_image(
@@ -231,8 +236,8 @@ async def run_all_scene_images(project_id: str) -> None:
         out_dir = _project_dir(project_id)
         svc = GenerationService()
         img_width, img_height = _resolve_dimensions(project.profile)
-        log.info("all_scene_images: profile=%r  form=%r  dimensions=%dx%d",
-                 project.profile, get_profile(project.profile).form, img_width, img_height)
+        log.info("all_scene_images: profile=%r  form=%r  aspect=%r  dimensions=%dx%d",
+                 project.profile, get_profile(project.profile).form, get_profile(project.profile).aspect, img_width, img_height)
 
         for i, scene in enumerate(scenes):
             await _generate_scene_image(

@@ -84,6 +84,7 @@ class GenerateIdeasRequest(BaseModel):
 class ProfileOut(BaseModel):
     name: str
     form: str = "short"
+    aspect: str = "auto"
     youtube_name: str = ""
     schedule_enabled: bool
     upload_rendered_cron: str

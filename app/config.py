@@ -104,6 +104,7 @@ class ProfilePromptsConfig:
 class ProfileConfig:
     name: str = "default"
     form: str = "short"            # short | long
+    aspect: str = "auto"           # auto | portrait | landscape
     youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
     schedule: SchedulerConfig = field(default_factory=SchedulerConfig)
     prompts: ProfilePromptsConfig = field(default_factory=ProfilePromptsConfig)
@@ -158,10 +159,15 @@ def _parse_profiles(data: dict, cfg: AppConfig) -> list[ProfileConfig]:
             if form not in ("short", "long"):
                 form = "short"
 
+            aspect = str(raw.get("aspect", "auto")).lower()
+            if aspect not in ("auto", "portrait", "landscape"):
+                aspect = "auto"
+
             profiles.append(
                 ProfileConfig(
                     name=name,
                     form=form,
+                    aspect=aspect,
                     youtube=YouTubeConfig(**raw.get("youtube", {})),
                     schedule=schedule,
                     prompts=prompts,

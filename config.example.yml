@@ -50,6 +50,7 @@ server:
 profiles:
   - name: weird-stories
     form: short             # short | long (long = ~10 min video, short = YouTube Shorts ~60s)
+    aspect: auto            # auto | portrait | landscape (controls image/video dimensions; auto = derive from form)
     youtube:
       name: Weird Stories Channel
       # Path to a Firefox profile directory that is already logged in to YouTube.
