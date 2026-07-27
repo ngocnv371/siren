@@ -33,7 +33,7 @@ def _resolve_dimensions(profile_name: str) -> tuple[int, int]:
     """Return (width, height) based on the profile's form setting."""
     profile = get_profile(profile_name)
     if profile.form == "long":
-        return 1920, 1080
+        return _DEFAULT_HEIGHT, _DEFAULT_WIDTH
     return _DEFAULT_WIDTH, _DEFAULT_HEIGHT
 
 
