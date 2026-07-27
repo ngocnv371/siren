@@ -15,6 +15,7 @@ from app.events import subscribe, unsubscribe
 from app.routers import dashboard, projects
 from app.routers import topics, ideas, profiles
 from app.services.scheduler import UploadScheduler
+from app.services.watchdog import ComfyWatchdog
 
 
 logging.basicConfig(
@@ -28,8 +29,10 @@ async def lifespan(app: FastAPI):
     await init_db()
     scheduler = UploadScheduler(cfg)
     await scheduler.start()
+    await ComfyWatchdog.start()
     yield
     await scheduler.stop()
+    await ComfyWatchdog.stop()
 
 
 app = FastAPI(title="siren", lifespan=lifespan)

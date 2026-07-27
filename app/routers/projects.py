@@ -315,7 +315,7 @@ async def serve_video(project_id: str, filename: str, session: Session):
 
 @router.post("/recover", response_model=dict)
 async def recover_failed_projects(session: Session):
-    """Reset failed projects back to their original stage based on error message."""
+    """Reset failed projects back to their original stage based on error_type metadata."""
     stmt = (
         select(Project)
         .where(Project.status == "failed")
@@ -333,12 +333,38 @@ async def recover_failed_projects(session: Session):
     recovered = []
     for project in projects:
         meta = project.get_metadata()
+        error_type = meta.get("error_type", "unknown")
         error = meta.get("error") or ""
-        if "image_stage" in error:
+        scenes = meta.get("scenes", [])
+
+        if error_type == "comfy_unavailable" or error_type == "comfy_timeout":
+            # Determine which stage failed based on metadata
+            has_music = any(s.get("music_done") for s in scenes) if isinstance(scenes, list) else False
+            has_images = any(s.get("image_path") for s in scenes) if isinstance(scenes, list) else False
+            if not has_music:
+                project.status = "tts_ready"
+                recovered.append(project.id)
+            elif not has_images:
+                project.status = "music_ready"
+                recovered.append(project.id)
+            else:
+                project.status = "images_ready"
+                recovered.append(project.id)
+
+        elif "image_stage" in error:
             project.status = "music_ready"
             recovered.append(project.id)
+
         elif "music_stage" in error:
             project.status = "tts_ready"
+            recovered.append(project.id)
+
+        elif "tts_stage" in error:
+            project.status = "scenes_ready"
+            recovered.append(project.id)
+
+        elif "text_stage" in error:
+            project.status = "approved"
             recovered.append(project.id)
 
     if recovered:

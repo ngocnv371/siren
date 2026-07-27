@@ -180,6 +180,8 @@ function App() {
 
   const [sseLabel, setSseLabel] = useState("idle");
   const [sseMode, setSseMode] = useState("idle");
+  const [comfyAvailable, setComfyAvailable] = useState(null);
+  const [comfyPaused, setComfyPaused] = useState(false);
   const [activityLog, setActivityLog] = useState([]);
 
   const [dashboard, setDashboard] = useState(null);
@@ -560,6 +562,19 @@ function App() {
     }
   }, [refreshVisibleData, showToast]);
 
+  const resumeComfyQueues = useCallback(async () => {
+    try {
+      const result = await api("POST", "/dashboard/resume-queues");
+      if (result.resumed.length > 0) {
+        showToast(`Resumed ${result.resumed.length} queue(s)`, "success");
+      } else {
+        showToast("No queues were paused", "success");
+      }
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [showToast]);
+
   const deleteTopic = useCallback(async (id) => {
     const topic = topics.find((item) => item.id === id);
     if (!window.confirm(`Delete topic \"${topic?.topic || ""}\"? This fails if it has projects.`)) return;
@@ -807,6 +822,12 @@ function App() {
           return;
         }
 
+        if (data.type === "comfy_status") {
+          setComfyAvailable(data.available);
+          setComfyPaused(!data.available);
+          return;
+        }
+
         if (data.type === "project_update") {
           clearTimeout(refreshTimerRef.current);
           refreshTimerRef.current = setTimeout(() => {
@@ -878,6 +899,17 @@ function App() {
           <div className=${`sse-dot ${sseMode}`}></div>
           <span className="sse-label">${sseLabel}</span>
         </div>
+        ${comfyAvailable !== null
+          ? html`
+              <div className=${`comfy-indicator ${comfyAvailable ? "comfy-ok" : "comfy-down"}`} title=${comfyAvailable ? "ComfyUI is available" : "ComfyUI is unavailable — queues paused"}>
+                <div className=${`comfy-dot ${comfyAvailable ? "comfy-ok" : "comfy-down"}`}></div>
+                <span className="comfy-label">${comfyAvailable ? "ComfyUI" : "ComfyUI down"}</span>
+                ${comfyPaused
+                  ? html`<button className="btn-comfy-resume" onClick=${resumeComfyQueues}>Resume Queues</button>`
+                  : null}
+              </div>
+            `
+          : null}
       </nav>
 
       <div className="page-layout">

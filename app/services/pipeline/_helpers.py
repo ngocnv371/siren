@@ -65,7 +65,7 @@ def _emit(msg: str, *args, level: str = "info", project_id: str | None = None, *
     emit("activity", **kw)
 
 
-async def _fail_project(project_id: str, error: str) -> None:
+async def _fail_project(project_id: str, error: str, error_type: str = "unknown") -> None:
     factory = get_session_factory()
     async with factory() as session:
         p = await session.get(Project, project_id)
@@ -74,6 +74,7 @@ async def _fail_project(project_id: str, error: str) -> None:
         p.status = "failed"
         m = p.get_metadata()
         m["error"] = error
+        m["error_type"] = error_type
         p.set_metadata(m)
         p.touch()
         await session.commit()

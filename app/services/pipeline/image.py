@@ -111,11 +111,19 @@ async def run_image_stage(project_id: str) -> None:
             return
 
         if project.status != "music_ready":
-            _emit(
-                "image_stage: project %s has status %r, expected 'music_ready'",
-                project_id, project.status,
-            )
-            return
+            # May be running in parallel with music stage via asyncio.gather()
+            # Wait briefly and re-check — music stage may commit while we're waiting
+            await asyncio.sleep(3)
+            project = await _load_project(project_id)
+            if project is None:
+                log.warning("image_stage: project %s disappeared during retry wait", project_id)
+                return
+            if project.status != "music_ready":
+                _emit(
+                    "image_stage: project %s has status %r, expected 'music_ready'",
+                    project_id, project.status,
+                )
+                return
 
         visual_guide = meta.get("visual_guide", "")
         log.info("image_stage: %d scenes  provider=%r  visual_guide=%r",
@@ -151,9 +159,16 @@ async def run_image_stage(project_id: str) -> None:
         _emit("Images complete", level="success", project_id=project_id, stage="image")
         _emit_event("project_update", project_id=project_id, status=new_status)
 
-    except Exception:
+    except Exception as exc:
         log.exception("image_stage failed project=%s", project_id)
-        await _fail_project(project_id, "image_stage failed — see server logs")
+        error_type = "unknown"
+        if "ComfyUnavailable" in type(exc).__name__:
+            error_type = "comfy_unavailable"
+        elif "ComfyTimeout" in type(exc).__name__:
+            error_type = "comfy_timeout"
+        elif "ComfyWorkflow" in type(exc).__name__:
+            error_type = "workflow_error"
+        await _fail_project(project_id, "image_stage failed — see server logs", error_type)
     finally:
         dec_active()
 

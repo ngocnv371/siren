@@ -88,9 +88,16 @@ async def run_music_stage(project_id: str) -> None:
         from app.events import emit as _emit_event
         _emit_event("project_update", project_id=project_id, status=new_status)
 
-    except Exception:
+    except Exception as exc:
         log.exception("music_stage failed project=%s", project_id)
-        await _fail_project(project_id, "music_stage failed — see server logs")
+        error_type = "unknown"
+        if "ComfyUnavailable" in type(exc).__name__:
+            error_type = "comfy_unavailable"
+        elif "ComfyTimeout" in type(exc).__name__:
+            error_type = "comfy_timeout"
+        elif "ComfyWorkflow" in type(exc).__name__:
+            error_type = "workflow_error"
+        await _fail_project(project_id, "music_stage failed — see server logs", error_type)
     finally:
         dec_active()
 

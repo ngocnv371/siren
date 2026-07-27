@@ -129,9 +129,16 @@ async def run_tts_stage(project_id: str) -> None:
         _emit("TTS stage complete", level="success", project_id=project_id, stage="tts")
         _emit_event("project_update", project_id=project_id, status="tts_ready")
 
-    except Exception:
+    except Exception as exc:
         log.exception("tts_stage failed project=%s", project_id)
-        await _fail_project(project_id, "tts_stage failed — see server logs")
+        error_type = "unknown"
+        if "ComfyUnavailable" in type(exc).__name__:
+            error_type = "comfy_unavailable"
+        elif "ComfyTimeout" in type(exc).__name__:
+            error_type = "comfy_timeout"
+        elif "ComfyWorkflow" in type(exc).__name__:
+            error_type = "workflow_error"
+        await _fail_project(project_id, "tts_stage failed — see server logs", error_type)
     finally:
         dec_active()
 

@@ -31,6 +31,7 @@ from app.services.pipeline import (
     run_render_stage,
 )
 from app.services.scheduler import get_next_run_times
+from app.services.watchdog import ComfyWatchdog
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -70,6 +71,32 @@ def _build_best_shorts_analysis_prompt(shorts: list[dict[str, object]]) -> str:
         "Shorts JSON:\n"
         f"{json.dumps(shorts, ensure_ascii=True)}"
     )
+
+
+@router.get("/comfy-status", response_model=dict)
+async def get_comfy_status():
+    """Return current ComfyUI health status."""
+    from app.services.generation.providers.comfy import ComfyHealth
+    available = ComfyHealth.is_available()
+    return {
+        "available": available,
+        "watchdog_available": ComfyWatchdog.is_available(),
+    }
+
+
+@router.post("/resume-queues")
+async def resume_queues(session: Session, background_tasks: BackgroundTasks):
+    """Manually resume all paused ComfyUI-dependent queues."""
+    from app.events import emit as _emit_event
+    _emit_event("comfy_status", available=True)
+    resumed = []
+    for queue in _COMFY_QUEUES:
+        if ComfyWatchdog.is_queue_paused(queue):
+            background_tasks.add_task(_process_queue_batch, _QUEUE_STATUS_MAP[queue], queue)
+            resumed.append(queue)
+    if resumed:
+        logger.info("Resuming paused queues: %s", ", ".join(resumed))
+    return {"resumed": resumed}
 
 
 @router.get("", response_model=DashboardOut)
@@ -204,9 +231,14 @@ async def _process_pipeline_stub(project_id: str, queue: str) -> None:
 
 async def _process_queue_batch(statuses: list[str], queue: str, topic_id: Optional[str] = None) -> None:
     """Process all projects in a queue with failure tracking.
-    Stops after 3 projects fail to prevent queue contamination."""
+    Stops after 3 projects fail to prevent queue contamination.
+    Skips processing if ComfyUI watchdog has paused this queue."""
     handler = _QUEUE_HANDLERS.get(queue)
     if not handler:
+        return
+    
+    if ComfyWatchdog.is_queue_paused(queue):
+        logger.info("Queue %s paused by watchdog, skipping", queue)
         return
     
     # Fetch projects to process
