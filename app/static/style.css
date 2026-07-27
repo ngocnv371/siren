@@ -959,6 +959,32 @@ tbody td { padding: .65rem .75rem; vertical-align: middle; }
   margin-left: .25rem;
 }
 .btn-comfy-resume:hover { background: var(--warning); color: #fff; }
+.comfy-actions {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.comfy-attempts {
+  font-size: .65rem;
+  color: var(--muted);
+  font-family: monospace;
+  background: var(--bg);
+  padding: .1rem .35rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+.btn-comfy-restart {
+  padding: .15rem .45rem;
+  border-radius: 4px;
+  font-size: .65rem;
+  cursor: pointer;
+  border: 1px solid var(--primary);
+  background: transparent;
+  color: var(--primary);
+  transition: background .12s, color .12s;
+  white-space: nowrap;
+}
+.btn-comfy-restart:hover { background: var(--primary); color: #fff; }
 
 /* ── Activity log ── */
 .activity-log {

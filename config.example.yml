@@ -27,6 +27,11 @@ comfy:
     image: ./assets/comfy-zimage.json
     music: ./assets/comfy-music.json
     tts: ./assets/comfy-tts-kokoro.json
+  # Auto-restart settings (optional)
+  # restart_cmd: "D:\\ComfyUI\\start.bat"    # Path to ComfyUI start script
+  # auto_restart: false                       # Auto-restart ComfyUI when crash detected
+  # restart_delay: 30                         # Seconds to wait before attempting restart
+  # max_restart_attempts: 5                   # Max restart attempts before giving up
 
 kittentts:
   model: KittenML/kitten-tts-mini-0.8               # Piper voice model

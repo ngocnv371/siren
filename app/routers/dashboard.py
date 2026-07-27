@@ -55,6 +55,8 @@ _FULL_PIPELINE_ELIGIBLE_STATUSES = [
     "images_ready",
 ]
 
+_COMFY_QUEUES = ["tts_queue", "music_queue", "image_queue"]
+
 _BEST_SHORTS_ANALYSIS_SYSTEM_PROMPT = (
     "You are a YouTube Shorts strategist. Analyze top shorts using only the "
     "provided title + views data and return concise, actionable guidance."
@@ -75,12 +77,13 @@ def _build_best_shorts_analysis_prompt(shorts: list[dict[str, object]]) -> str:
 
 @router.get("/comfy-status", response_model=dict)
 async def get_comfy_status():
-    """Return current ComfyUI health status."""
+    """Return current ComfyUI health and watchdog status."""
     from app.services.generation.providers.comfy import ComfyHealth
     available = ComfyHealth.is_available()
     return {
         "available": available,
         "watchdog_available": ComfyWatchdog.is_available(),
+        **ComfyWatchdog.get_status(),
     }
 
 
@@ -97,6 +100,19 @@ async def resume_queues(session: Session, background_tasks: BackgroundTasks):
     if resumed:
         logger.info("Resuming paused queues: %s", ", ".join(resumed))
     return {"resumed": resumed}
+
+
+@router.post("/restart-comfy")
+async def restart_comfy(session: Session):
+    """Manually restart ComfyUI."""
+    try:
+        success = await ComfyWatchdog.manual_restart()
+        return {"success": success, "message": "Restart command executed" if success else "Restart command failed"}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("ComfyUI restart failed")
+        raise HTTPException(500, str(e))
 
 
 @router.get("", response_model=DashboardOut)

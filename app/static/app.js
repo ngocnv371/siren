@@ -182,6 +182,9 @@ function App() {
   const [sseMode, setSseMode] = useState("idle");
   const [comfyAvailable, setComfyAvailable] = useState(null);
   const [comfyPaused, setComfyPaused] = useState(false);
+  const [comfyRestartAttempts, setComfyRestartAttempts] = useState(0);
+  const [comfyMaxAttempts, setComfyMaxAttempts] = useState(5);
+  const [comfyAutoRestart, setComfyAutoRestart] = useState(false);
   const [activityLog, setActivityLog] = useState([]);
 
   const [dashboard, setDashboard] = useState(null);
@@ -575,6 +578,29 @@ function App() {
     }
   }, [showToast]);
 
+  const restartComfy = useCallback(async () => {
+    if (!window.confirm("Restart ComfyUI? This will temporarily pause all ComfyUI-dependent queues.")) return;
+    try {
+      const result = await api("POST", "/dashboard/restart-comfy");
+      showToast(result.message || "Restart command sent", "success");
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [showToast]);
+
+  const loadComfyStatus = useCallback(async () => {
+    try {
+      const status = await api("GET", "/dashboard/comfy-status");
+      setComfyAvailable(status.available);
+      setComfyPaused(!status.available);
+      setComfyRestartAttempts(status.restart_attempts || 0);
+      setComfyMaxAttempts(status.max_restart_attempts || 5);
+      setComfyAutoRestart(status.auto_restart_enabled || false);
+    } catch {
+      // Non-critical — status will be updated via SSE
+    }
+  }, []);
+
   const deleteTopic = useCallback(async (id) => {
     const topic = topics.find((item) => item.id === id);
     if (!window.confirm(`Delete topic \"${topic?.topic || ""}\"? This fails if it has projects.`)) return;
@@ -707,6 +733,10 @@ function App() {
   }, [loadProfiles]);
 
   useEffect(() => {
+    loadComfyStatus();
+  }, [loadComfyStatus]);
+
+  useEffect(() => {
     if (currentTopicId) {
       localStorage.setItem("as_topic_id", currentTopicId);
     } else {
@@ -760,7 +790,8 @@ function App() {
   useEffect(() => {
     if (!currentTopicId || activePage !== "dashboard") return;
     loadDashboard();
-  }, [activePage, currentTopicId, loadDashboard]);
+    loadComfyStatus();
+  }, [activePage, currentTopicId, loadDashboard, loadComfyStatus]);
 
   useEffect(() => {
     if (!currentTopicId || activePage !== "projects") return;
@@ -825,6 +856,9 @@ function App() {
         if (data.type === "comfy_status") {
           setComfyAvailable(data.available);
           setComfyPaused(!data.available);
+          if (data.attempt !== undefined) {
+            setComfyRestartAttempts(data.attempt);
+          }
           return;
         }
 
@@ -901,11 +935,19 @@ function App() {
         </div>
         ${comfyAvailable !== null
           ? html`
-              <div className=${`comfy-indicator ${comfyAvailable ? "comfy-ok" : "comfy-down"}`} title=${comfyAvailable ? "ComfyUI is available" : "ComfyUI is unavailable — queues paused"}>
+              <div className=${`comfy-indicator ${comfyAvailable ? "comfy-ok" : "comfy-down"}`} title=${comfyAvailable
+                ? "ComfyUI is available"
+                : `ComfyUI is unavailable — auto-restart attempts: ${comfyRestartAttempts}/${comfyMaxAttempts}`}
+              >
                 <div className=${`comfy-dot ${comfyAvailable ? "comfy-ok" : "comfy-down"}`}></div>
                 <span className="comfy-label">${comfyAvailable ? "ComfyUI" : "ComfyUI down"}</span>
                 ${comfyPaused
-                  ? html`<button className="btn-comfy-resume" onClick=${resumeComfyQueues}>Resume Queues</button>`
+                  ? html`
+                      <div className="comfy-actions">
+                        <span className="comfy-attempts" title=${`Auto-restart: ${comfyRestartAttempts}/${comfyMaxAttempts}`}>${comfyRestartAttempts}/${comfyMaxAttempts}</span>
+                        <button className="btn-comfy-restart" onClick=${restartComfy}>Restart ComfyUI</button>
+                      </div>
+                    `
                   : null}
               </div>
             `

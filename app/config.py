@@ -38,6 +38,10 @@ class ComfyWorkflows:
 class ComfyConfig:
     base_url: str = "http://127.0.0.1:8188"
     workflows: ComfyWorkflows = field(default_factory=ComfyWorkflows)
+    restart_cmd: str = ""           # command/script to restart ComfyUI (e.g. "D:\\ComfyUI\\start.bat")
+    auto_restart: bool = False      # auto-restart ComfyUI when crash detected
+    restart_delay: int = 30         # seconds to wait before attempting restart
+    max_restart_attempts: int = 5   # max restart attempts before giving up
 
 
 @dataclass
@@ -217,6 +221,10 @@ def _build_config(data: dict) -> AppConfig:
         cfg.comfy = ComfyConfig(
             base_url=d.get("base_url", "http://127.0.0.1:8188"),
             workflows=ComfyWorkflows(**d.get("workflows", {})),
+            restart_cmd=d.get("restart_cmd", ""),
+            auto_restart=d.get("auto_restart", False),
+            restart_delay=d.get("restart_delay", 30),
+            max_restart_attempts=d.get("max_restart_attempts", 5),
         )
 
     if "kittentts" in data:
