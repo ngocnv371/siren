@@ -313,6 +313,40 @@ async def serve_video(project_id: str, filename: str, session: Session):
     return FileResponse(video_path, media_type="video/mp4")
 
 
+@router.post("/recover", response_model=dict)
+async def recover_failed_projects(session: Session):
+    """Reset failed projects back to their original stage based on error message."""
+    stmt = (
+        select(Project)
+        .where(Project.status == "failed")
+        .options(
+            load_only(
+                Project.id,
+                Project.status,
+                Project.meta_json,
+            )
+        )
+    )
+    result = await session.execute(stmt)
+    projects = result.scalars().all()
+
+    recovered = []
+    for project in projects:
+        meta = project.get_metadata()
+        error = meta.get("error") or ""
+        if "image_stage" in error:
+            project.status = "music_ready"
+            recovered.append(project.id)
+        elif "music_stage" in error:
+            project.status = "tts_ready"
+            recovered.append(project.id)
+
+    if recovered:
+        await session.commit()
+
+    return {"recovered": recovered, "count": len(recovered)}
+
+
 # ------------------------------------------------------------------ helpers
 
 async def _get_or_404(session: AsyncSession, project_id: str) -> Project:

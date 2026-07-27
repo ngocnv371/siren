@@ -544,6 +544,21 @@ function App() {
     }
   }, [selectedProfile, showToast]);
 
+  const recoverFailed = useCallback(async () => {
+    if (!window.confirm("Recover all failed projects? This will reset image/music stage failures back to their original status.")) return;
+    try {
+      const result = await api("POST", "/projects/recover");
+      if (result.count > 0) {
+        showToast(`Recovered ${result.count} project(s)`, "success");
+      } else {
+        showToast("No projects matched recovery criteria", "success");
+      }
+      refreshVisibleData();
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [refreshVisibleData, showToast]);
+
   const deleteTopic = useCallback(async (id) => {
     const topic = topics.find((item) => item.id === id);
     if (!window.confirm(`Delete topic \"${topic?.topic || ""}\"? This fails if it has projects.`)) return;
@@ -891,6 +906,9 @@ function App() {
             <div className="summary-chip"><div className="num">${dashboard?.total ?? "-"}</div><div className="lbl">Total</div></div>
             <div className="summary-chip"><div className="num" style=${{ color: "var(--success)" }}>${statusCounts.rendered ?? "-"}</div><div className="lbl">Rendered</div></div>
             <div className="summary-chip"><div className="num" style=${{ color: "var(--danger)" }}>${statusCounts.failed ?? "-"}</div><div className="lbl">Failed</div></div>
+            ${statusCounts.failed > 0
+              ? html`<button className="btn-recover" onClick=${recoverFailed}>Recover Failed</button>`
+              : null}
             <div className="summary-chip"><div className="num" style=${{ color: "var(--s-idea)" }}>${statusCounts.idea ?? "-"}</div><div className="lbl">Ideas</div></div>
           </div>
 

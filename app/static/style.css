@@ -167,6 +167,20 @@ main { flex: 1; padding: 1.5rem; max-width: 1400px; width: 100%; margin: 0 auto;
 .summary-chip .num { font-size: 1.4rem; font-weight: 700; }
 .summary-chip .lbl { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 
+.btn-recover {
+  padding: .45rem 1rem;
+  background: rgba(248,113,113,.12);
+  border: 1px solid rgba(248,113,113,.35);
+  color: var(--danger);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: .82rem;
+  font-weight: 600;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.btn-recover:hover { background: var(--danger); color: #fff; }
+
 .schedule-card {
   background: var(--surface);
   border: 1px solid var(--border);
