@@ -339,7 +339,7 @@ async def recover_failed_projects(session: Session):
 
         if error_type == "comfy_unavailable" or error_type == "comfy_timeout":
             # Determine which stage failed based on metadata
-            has_music = any(s.get("music_done") for s in scenes) if isinstance(scenes, list) else False
+            has_music = meta.get("music_done", False)
             has_images = any(s.get("image_path") for s in scenes) if isinstance(scenes, list) else False
             if not has_music:
                 project.status = "tts_ready"
