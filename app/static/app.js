@@ -212,6 +212,9 @@ function App() {
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailProject, setDetailProject] = useState(null);
+  const [detailEditing, setDetailEditing] = useState(false);
+  const [detailForm, setDetailForm] = useState(null);
+  const [detailSaving, setDetailSaving] = useState(false);
 
   const [previewImage, setPreviewImage] = useState(null);
 
@@ -389,11 +392,95 @@ function App() {
     try {
       const project = await api("GET", `/projects/${id}`);
       setDetailProject(project);
+      setDetailEditing(false);
+      setDetailForm(null);
+      setDetailSaving(false);
       setDetailOpen(true);
     } catch (e) {
       showToast(e.message, "error");
     }
   }, [showToast]);
+
+  const closeDetail = useCallback(() => {
+    setDetailOpen(false);
+    setDetailProject(null);
+    setDetailEditing(false);
+    setDetailForm(null);
+  }, []);
+
+  const startEdit = useCallback(() => {
+    if (!detailProject) return;
+    const meta = detailProject.metadata || {};
+    setDetailForm({
+      title: detailProject.title,
+      profile: detailProject.profile || "",
+      tags: (detailProject.tags || []).join(", "),
+      metadata: {
+        summary: meta.summary ?? "",
+        transcript: meta.transcript ?? "",
+        narrator: meta.narrator ?? "",
+        music: meta.music ?? "",
+        visual_guide: meta.visual_guide ?? "",
+        duration: meta.duration != null ? String(meta.duration) : "",
+        word_count: meta.word_count != null ? String(meta.word_count) : "",
+      },
+    });
+    setDetailEditing(true);
+  }, [detailProject]);
+
+  const cancelEdit = useCallback(() => {
+    setDetailEditing(false);
+    setDetailForm(null);
+  }, []);
+
+  const setFormField = useCallback((field, value) => {
+    setDetailForm((form) => (form ? { ...form, [field]: value } : form));
+  }, []);
+
+  const setFormMeta = useCallback((field, value) => {
+    setDetailForm((form) => (form ? { ...form, metadata: { ...form.metadata, [field]: value } } : form));
+  }, []);
+
+  const saveDetail = useCallback(async () => {
+    if (!detailProject || !detailForm) return;
+    setDetailSaving(true);
+    try {
+      const meta = detailForm.metadata || {};
+      const tags = (detailForm.tags || "").split(",").map((tag) => tag.trim()).filter(Boolean);
+      const metadata = { ...(detailProject.metadata || {}) };
+      if (meta.summary !== "") metadata.summary = meta.summary;
+      else delete metadata.summary;
+      if (meta.transcript !== "") metadata.transcript = meta.transcript;
+      else delete metadata.transcript;
+      if (meta.narrator !== "") metadata.narrator = meta.narrator;
+      else delete metadata.narrator;
+      if (meta.music !== "") metadata.music = meta.music;
+      else delete metadata.music;
+      if (meta.visual_guide !== "") metadata.visual_guide = meta.visual_guide;
+      else delete metadata.visual_guide;
+      if (meta.duration !== "") metadata.duration = Number(meta.duration);
+      else delete metadata.duration;
+      if (meta.word_count !== "") metadata.word_count = Number(meta.word_count);
+      else delete metadata.word_count;
+
+      const updated = await api("PATCH", `/projects/${detailProject.id}`, {
+        title: detailForm.title,
+        profile: detailForm.profile || undefined,
+        tags,
+        metadata,
+      });
+      setDetailProject(updated);
+      setDetailEditing(false);
+      setDetailForm(null);
+      showToast("Project updated", "success");
+      loadDashboard();
+      if (activePage === "projects") loadProjects();
+    } catch (e) {
+      showToast(e.message, "error");
+    } finally {
+      setDetailSaving(false);
+    }
+  }, [activePage, detailForm, detailProject, loadDashboard, loadProjects, showToast]);
 
   const refreshVisibleData = useCallback(() => {
     loadDashboard();
@@ -468,14 +555,13 @@ function App() {
       await api("DELETE", `/projects/${id}`);
       showToast("Deleted", "success");
       if (detailProject?.id === id) {
-        setDetailOpen(false);
-        setDetailProject(null);
+        closeDetail();
       }
       refreshVisibleData();
     } catch (e) {
       showToast(e.message, "error");
     }
-  }, [detailProject?.id, refreshVisibleData, showToast]);
+  }, [detailProject?.id, refreshVisibleData, closeDetail, showToast]);
 
   const uploadToYouTube = useCallback(async (id) => {
     try {
@@ -761,13 +847,12 @@ function App() {
         setPreviewImage(null);
       }
       else if (detailOpen) {
-        setDetailOpen(false);
-        setDetailProject(null);
+        closeDetail();
       }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [detailOpen, genOpen]);
+  }, [detailOpen, closeDetail, genOpen]);
 
   useEffect(() => {
     if (!genOpen || !currentTopicId) return;
@@ -1270,22 +1355,38 @@ function App() {
         </div>
       </div>
 
-      <div className=${`detail-overlay ${detailOpen ? "open" : ""}`} onClick=${() => {
-        setDetailOpen(false);
-        setDetailProject(null);
-      }}></div>
+      <div className=${`detail-overlay ${detailOpen ? "open" : ""}`} onClick=${closeDetail}></div>
       <div className=${`detail-panel ${detailOpen ? "open" : ""}`}>
         <div className="detail-header">
           <div className="detail-header-info">
-            <div className="detail-title">${detailProject?.title || "Project"}</div>
-            <div className="detail-meta">
-              ${detailProject ? html`${badge(detailProject.status)} · <span className="text-muted">${detailProject.profile || "default"}</span> · <span className="text-muted">${detailProject.id}</span> · ${fmtDate(detailProject.created_at)}` : ""}
-            </div>
+            ${detailEditing && detailForm
+              ? html`
+                  <input
+                    className="edit-title-input"
+                    value=${detailForm.title}
+                    placeholder="Project title"
+                    onInput=${(e) => setFormField("title", e.target.value)}
+                  />
+                  <input
+                    className="edit-input"
+                    style=${{ marginTop: ".4rem" }}
+                    value=${detailForm.profile}
+                    list="detail-profile-options"
+                    placeholder="Profile"
+                    onInput=${(e) => setFormField("profile", e.target.value)}
+                  />
+                  <datalist id="detail-profile-options">
+                    ${profiles.map((p) => html`<option key=${p.name} value=${p.name}></option>`)}
+                  </datalist>
+                `
+              : html`
+                  <div className="detail-title">${detailProject?.title || "Project"}</div>
+                  <div className="detail-meta">
+                    ${detailProject ? html`${badge(detailProject.status)} · <span className="text-muted">${detailProject.profile || "default"}</span> · <span className="text-muted">${detailProject.id}</span> · ${fmtDate(detailProject.created_at)}` : ""}
+                  </div>
+                `}
           </div>
-          <button className="detail-close" onClick=${() => {
-            setDetailOpen(false);
-            setDetailProject(null);
-          }}>x</button>
+          <button className="detail-close" onClick=${closeDetail}>x</button>
         </div>
 
         ${detailProject
@@ -1304,6 +1405,12 @@ function App() {
                 <select className="select-filter status-jump" value=${detailProject.status} onChange=${(e) => setProjectStatus(detailProject.id, e.target.value)}>
                   ${PIPELINE_STATUSES.map((status) => html`<option key=${status} value=${status}>${status.replace(/_/g, " ")}</option>`)}
                 </select>
+                ${detailEditing
+                  ? html`
+                      <button className="btn-sm save" onClick=${saveDetail} disabled=${detailSaving}>${detailSaving ? "Saving..." : "Save"}</button>
+                      <button className="btn-sm" onClick=${cancelEdit} disabled=${detailSaving}>Cancel</button>
+                    `
+                  : html`<button className="btn-sm edit" onClick=${startEdit}>Edit</button>`}
                 <button className="btn-sm delete" onClick=${() => deleteProject(detailProject.id)}>Delete</button>
               </div>
 
@@ -1329,33 +1436,72 @@ function App() {
 
               <div className="detail-section">
                 <div className="detail-section-title">Metadata</div>
-                <div className="meta-grid">
-                  ${Object.entries({
-                    Summary: detailMeta.summary,
-                    Transcript: detailMeta.transcript,
-                    Narrator: detailMeta.narrator,
-                    "Music prompt": detailMeta.music,
-                    "Visual guide": detailMeta.visual_guide,
-                    Duration: detailMeta.duration != null ? `${detailMeta.duration}s` : null,
-                    "Word count": detailMeta.word_count,
-                  })
-                    .filter((entry) => entry[1] != null && String(entry[1]).trim() !== "")
-                    .map(([key, value]) => html`
-                      <div key=${key} className="meta-item">
-                        <div className="meta-key">${key}</div>
-                        <div className="meta-val pre">${String(value)}</div>
+                ${detailEditing && detailForm
+                  ? html`
+                      <div className="edit-fields">
+                        <div className="edit-field">
+                          <label className="edit-label">Summary</label>
+                          <textarea className="edit-textarea" rows=${3} value=${detailForm.metadata.summary} onInput=${(e) => setFormMeta("summary", e.target.value)}></textarea>
+                        </div>
+                        <div className="edit-field">
+                          <label className="edit-label">Transcript</label>
+                          <textarea className="edit-textarea" rows=${5} value=${detailForm.metadata.transcript} onInput=${(e) => setFormMeta("transcript", e.target.value)}></textarea>
+                        </div>
+                        <div className="edit-field">
+                          <label className="edit-label">Narrator</label>
+                          <input className="edit-input" value=${detailForm.metadata.narrator} onInput=${(e) => setFormMeta("narrator", e.target.value)} />
+                        </div>
+                        <div className="edit-field">
+                          <label className="edit-label">Music prompt</label>
+                          <textarea className="edit-textarea" rows=${3} value=${detailForm.metadata.music} onInput=${(e) => setFormMeta("music", e.target.value)}></textarea>
+                        </div>
+                        <div className="edit-field">
+                          <label className="edit-label">Visual guide</label>
+                          <textarea className="edit-textarea" rows=${4} value=${detailForm.metadata.visual_guide} onInput=${(e) => setFormMeta("visual_guide", e.target.value)}></textarea>
+                        </div>
+                        <div className="edit-field">
+                          <label className="edit-label">Duration (seconds)</label>
+                          <input className="edit-input" type="number" value=${detailForm.metadata.duration} onInput=${(e) => setFormMeta("duration", e.target.value)} />
+                        </div>
+                        <div className="edit-field">
+                          <label className="edit-label">Word count</label>
+                          <input className="edit-input" type="number" value=${detailForm.metadata.word_count} onInput=${(e) => setFormMeta("word_count", e.target.value)} />
+                        </div>
                       </div>
-                    `)}
-                </div>
+                    `
+                  : html`
+                      <div className="meta-grid">
+                        ${Object.entries({
+                          Summary: detailMeta.summary,
+                          Transcript: detailMeta.transcript,
+                          Narrator: detailMeta.narrator,
+                          "Music prompt": detailMeta.music,
+                          "Visual guide": detailMeta.visual_guide,
+                          Duration: detailMeta.duration != null ? `${detailMeta.duration}s` : null,
+                          "Word count": detailMeta.word_count,
+                        })
+                          .filter((entry) => entry[1] != null && String(entry[1]).trim() !== "")
+                          .map(([key, value]) => html`
+                            <div key=${key} className="meta-item">
+                              <div className="meta-key">${key}</div>
+                              <div className="meta-val pre">${String(value)}</div>
+                            </div>
+                          `)}
+                      </div>
+                    `}
               </div>
 
-              ${(detailProject.tags || []).length
+              ${(detailProject.tags || []).length || detailEditing
                 ? html`
                     <div className="detail-section">
                       <div className="detail-section-title">Tags</div>
-                      <div className="td-tags">
-                        ${detailProject.tags.map((tag) => html`<span key=${tag} className="tag">${tag}</span>`)}
-                      </div>
+                      ${detailEditing && detailForm
+                        ? html`<input className="edit-input" value=${detailForm.tags} placeholder="Comma separated" onInput=${(e) => setFormField("tags", e.target.value)} />`
+                        : html`
+                            <div className="td-tags">
+                              ${detailProject.tags.map((tag) => html`<span key=${tag} className="tag">${tag}</span>`)}
+                            </div>
+                          `}
                     </div>
                   `
                 : null}
