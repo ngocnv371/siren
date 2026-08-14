@@ -28,6 +28,13 @@ class OpenAIConfig:
 
 
 @dataclass
+class DeepSeekConfig:
+    base_url: str = "https://api.deepseek.com/v1"
+    api_key: str = ""
+    model: str = "deepseek-v4-flash"
+
+
+@dataclass
 class ComfyWorkflows:
     image: str = "./assets/comfy-zimage.json"
     music: str = "./assets/comfy-music.json"
@@ -52,7 +59,7 @@ class KittenTTSConfig:
 
 @dataclass
 class ProvidersConfig:
-    text: str = "gemini"    # gemini | openai
+    text: str = "gemini"    # gemini | openai | deepseek
     image: str = "comfy"    # gemini | comfy
     tts: str = "kittentts"  # gemini | kittentts
     music: str = "comfy"    # comfy
@@ -121,6 +128,7 @@ class AppConfig:
     providers: ProvidersConfig = field(default_factory=ProvidersConfig)
     gemini: GeminiConfig = field(default_factory=GeminiConfig)
     openai: OpenAIConfig = field(default_factory=OpenAIConfig)
+    deepseek: DeepSeekConfig = field(default_factory=DeepSeekConfig)
     comfy: ComfyConfig = field(default_factory=ComfyConfig)
     kittentts: KittenTTSConfig = field(default_factory=KittenTTSConfig)
     video: VideoConfig = field(default_factory=VideoConfig)
@@ -215,6 +223,9 @@ def _build_config(data: dict) -> AppConfig:
 
     if "openai" in data:
         cfg.openai = OpenAIConfig(**data["openai"])
+
+    if "deepseek" in data:
+        cfg.deepseek = DeepSeekConfig(**data["deepseek"])
 
     if "comfy" in data:
         d = data["comfy"]

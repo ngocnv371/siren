@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.config import AppConfig, get_config
 from .providers.base import ImageProvider, MusicProvider, TextProvider, TTSProvider
 from .providers.comfy import ComfyImageProvider, ComfyMusicProvider, ComfyTTSProvider
+from .providers.deepseek import DeepSeekTextProvider
 from .providers.gemini import GeminiImageProvider, GeminiTextProvider, GeminiTTSProvider
 from .providers.kittentts import KittenTTSProvider
 from .providers.openai_compat import OpenAITextProvider
@@ -32,7 +33,9 @@ class GenerationService:
             return GeminiTextProvider(self._config.gemini)
         if name == "openai":
             return OpenAITextProvider(self._config.openai)
-        raise ValueError(f"Unknown text provider: {name!r}. Choose 'gemini' or 'openai'.")
+        if name == "deepseek":
+            return DeepSeekTextProvider(self._config.deepseek)
+        raise ValueError(f"Unknown text provider: {name!r}. Choose 'gemini', 'openai' or 'deepseek'.")
 
     def _build_image_provider(self) -> ImageProvider:
         name = self._config.providers.image

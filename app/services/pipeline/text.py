@@ -65,7 +65,9 @@ async def run_text_stage(project_id: str) -> None:
         profile = get_profile(project.profile)
         log.info("text_stage: calling text provider=%r model=%r",
                  cfg.providers.text,
-                 getattr(cfg.gemini if cfg.providers.text == "gemini" else cfg.openai, "text_model", "?"))
+                 cfg.gemini.text_model if cfg.providers.text == "gemini"
+                 else cfg.deepseek.model if cfg.providers.text == "deepseek"
+                 else getattr(cfg.openai, "model", "?"))
 
         summary_hint = f'\nContext: "{existing_summary}"' if existing_summary else ""
         if profile.form == "long":
