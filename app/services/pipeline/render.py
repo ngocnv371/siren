@@ -7,9 +7,10 @@ import os
 import subprocess
 import time
 
-from app.config import get_config
+from app.config import get_config, get_profile
 from app.database import get_session_factory
 from app.models import Project
+from .image import _resolve_dimensions
 from .render_subtitles import align_and_burn, burn_subtitles_on_clip, extract_audio_segment
 
 from ._helpers import (
@@ -25,15 +26,15 @@ from ._helpers import (
 log = logging.getLogger(__name__)
 
 
-def _render_scene_clip(scene: dict, out_path: str) -> None:
-    """Combine a still image (+ optional audio) into a 1080×1920 MP4 clip using ffmpeg."""
+def _render_scene_clip(scene: dict, out_path: str, width: int = 1080, height: int = 1920) -> None:
+    """Combine a still image (+ optional audio) into a MP4 clip using ffmpeg."""
     cfg = get_config()
     image_path = scene["image_path"]
     audio_path = scene.get("audio_path")
     duration = float(scene.get("duration") or 5)
     log.debug(
-        "_render_scene_clip: image=%s  audio=%s  duration=%.1fs  ken_burns=%s",
-        image_path, audio_path, duration, getattr(cfg.video, "enableKenBurns", False),
+        "_render_scene_clip: image=%s  audio=%s  duration=%.1fs  ken_burns=%s  dims=%dx%d",
+        image_path, audio_path, duration, getattr(cfg.video, "enableKenBurns", False), width, height,
     )
 
     if audio_path and os.path.exists(audio_path):
@@ -46,12 +47,12 @@ def _render_scene_clip(scene: dict, out_path: str) -> None:
                 f"zoompan=z='min(zoom+0.0004,1.5)'"
                 f":x='iw/2-(iw/zoom/2)'"
                 f":y='ih/2-(ih/zoom/2)'"
-                f":d={frames}:s=1080x1920:fps=25"
+                f":d={frames}:s={width}x{height}:fps=25"
             )
         else:
             vf = (
-                "scale=1080:1920:force_original_aspect_ratio=decrease,"
-                "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black"
+                f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"
             )
 
         cmd = [
@@ -72,8 +73,8 @@ def _render_scene_clip(scene: dict, out_path: str) -> None:
             result.check_returncode()
     else:
         vf = (
-            "scale=1080:1920:force_original_aspect_ratio=decrease,"
-            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black"
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black"
         )
         cmd = [
             "ffmpeg", "-y",
@@ -164,6 +165,14 @@ async def run_render_stage(project_id: str) -> None:
 
         cfg = get_config()
 
+        # ── Resolve video dimensions from profile ────────────────────
+        img_width, img_height = _resolve_dimensions(project.profile)
+        profile = get_profile(project.profile)
+        log.info(
+            "render_stage: profile=%r  form=%r  aspect=%r  dimensions=%dx%d",
+            project.profile, profile.form, profile.aspect, img_width, img_height,
+        )
+
         # ── Per-scene clips ──────────────────────────────────────────
         updated_scenes = []
         clip_paths: list[str] = []
@@ -193,7 +202,7 @@ async def run_render_stage(project_id: str) -> None:
                 log.info("render_stage: clip %d/%d already exists, reusing  path=%s", i + 1, len(scenes), clip_path)
             else:
                 t_clip = time.monotonic()
-                await asyncio.to_thread(_render_scene_clip, scene_for_render, clip_path)
+                await asyncio.to_thread(_render_scene_clip, scene_for_render, clip_path, img_width, img_height)
                 log.info(
                     "render_stage: clip %d/%d done  elapsed=%s  path=%s",
                     i + 1, len(scenes), _elapsed(t_clip), clip_path,
