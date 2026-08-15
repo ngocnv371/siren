@@ -16,6 +16,8 @@ async def list_profiles() -> list[ProfileOut]:
             name=profile.name,
             form=profile.form,
             aspect=profile.aspect,
+            width=profile.width,
+            height=profile.height,
             youtube_name=profile.youtube.name,
             schedule_enabled=profile.schedule.enabled,
             upload_rendered_cron=profile.schedule.upload_rendered_cron,

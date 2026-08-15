@@ -85,6 +85,8 @@ class ProfileOut(BaseModel):
     name: str
     form: str = "short"
     aspect: str = "auto"
+    width: int | None = None
+    height: int | None = None
     youtube_name: str = ""
     schedule_enabled: bool
     upload_rendered_cron: str

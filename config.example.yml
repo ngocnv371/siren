@@ -61,6 +61,8 @@ profiles:
   - name: weird-stories
     form: short             # short | long (long = ~10 min video, short = YouTube Shorts ~60s)
     aspect: auto            # auto | portrait | landscape (controls image/video dimensions; auto = derive from form)
+    # width: 1080            # optional explicit override; if set, overrides aspect (must pair with height)
+    # height: 1920
     youtube:
       name: Weird Stories Channel
       # Path to a Firefox profile directory that is already logged in to YouTube.

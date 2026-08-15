@@ -116,6 +116,8 @@ class ProfileConfig:
     name: str = "default"
     form: str = "short"            # short | long
     aspect: str = "auto"           # auto | portrait | landscape
+    width: int | None = None       # explicit width override (overrides aspect)
+    height: int | None = None      # explicit height override (overrides aspect)
     youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
     schedule: SchedulerConfig = field(default_factory=SchedulerConfig)
     prompts: ProfilePromptsConfig = field(default_factory=ProfilePromptsConfig)
@@ -175,11 +177,16 @@ def _parse_profiles(data: dict, cfg: AppConfig) -> list[ProfileConfig]:
             if aspect not in ("auto", "portrait", "landscape"):
                 aspect = "auto"
 
+            width = raw.get("width")
+            height = raw.get("height")
+
             profiles.append(
                 ProfileConfig(
                     name=name,
                     form=form,
                     aspect=aspect,
+                    width=int(width) if width is not None else None,
+                    height=int(height) if height is not None else None,
                     youtube=YouTubeConfig(**raw.get("youtube", {})),
                     schedule=schedule,
                     prompts=prompts,

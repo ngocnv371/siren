@@ -30,8 +30,10 @@ _DEFAULT_HEIGHT = 1920
 
 
 def _resolve_dimensions(profile_name: str) -> tuple[int, int]:
-    """Return (width, height) based on the profile's aspect setting."""
+    """Return (width, height) based on the profile's explicit size or aspect setting."""
     profile = get_profile(profile_name)
+    if profile.width is not None and profile.height is not None:
+        return profile.width, profile.height
     if profile.aspect == "landscape":
         return _DEFAULT_HEIGHT, _DEFAULT_WIDTH
     if profile.aspect == "portrait":
