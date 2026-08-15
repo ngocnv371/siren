@@ -70,26 +70,6 @@ function badge(status) {
   return html`<span className=${`badge s-badge-${status}`}>${status.replace(/_/g, " ")}</span>`;
 }
 
-function ProjectActions({ project, onApprove, onReject, onRun, onRerender, onDelete }) {
-  return html`
-    <div className="d-flex gap-1 flex-wrap align-items-center" onClick=${(e) => e.stopPropagation()}>
-      ${project.status === "idea"
-        ? html`<button className="btn btn-sm btn-outline-primary" onClick=${() => onApprove(project.id)}>Approve</button>`
-        : null}
-      ${["idea", "approved"].includes(project.status)
-        ? html`<button className="btn btn-sm btn-outline-warning" onClick=${() => onReject(project.id)}>Reject</button>`
-        : null}
-      ${project.status === "approved"
-        ? html`<button className="btn btn-sm btn-outline-success" onClick=${() => onRun(project.id)}>Run</button>`
-        : null}
-      ${["rendered", "uploaded", "failed", "images_ready"].includes(project.status)
-        ? html`<button className="btn btn-sm btn-outline-info" onClick=${() => onRerender(project.id)}>Re-render</button>`
-        : null}
-      <button className="btn btn-sm btn-outline-danger" onClick=${() => onDelete(project.id)}>Delete</button>
-    </div>
-  `;
-}
-
 function ProfilePanel({ profiles, selectedProfile, onSelectProfile, topics, currentTopicId, onTopicSelect, onAddTopic, onDeleteTopic, profileTopics }) {
   const [newTopicText, setNewTopicText] = useState("");
 
@@ -1265,11 +1245,7 @@ function App() {
                           />
                         </th>
                         <th>Title</th>
-                        <th>Profile</th>
                         <th>Status</th>
-                        <th>Tags</th>
-                        <th class="text-nowrap">Created</th>
-                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1289,25 +1265,15 @@ function App() {
                               aria-label=${`Select ${project.title}`}
                             />
                           </td>
-                          <td className="text-truncate fw-medium" style=${{ maxWidth: 380 }}>${project.title}</td>
-                          <td className="text-truncate" style=${{ maxWidth: 380 }}>${project.profile || "-"}</td>
-                          <td>${badge(project.status)}</td>
-                          <td className="d-flex gap-1 flex-wrap">
-                            ${(project.tags || []).length
-                              ? project.tags.map((tag) => html`<span key=${tag} className="badge text-bg-primary">${tag}</span>`)
-                              : html`<span className="text-muted">-</span>`}
-                          </td>
-                          <td className="small text-muted text-nowrap">${fmtDate(project.created_at)}</td>
                           <td>
-                            <${ProjectActions}
-                              project=${project}
-                              onApprove=${approveProject}
-                              onReject=${rejectProject}
-                              onRun=${runPipeline}
-                              onRerender=${reRender}
-                              onDelete=${deleteProject}
-                            />
+                            <div className="text-truncate fw-medium" style=${{ maxWidth: 380 }}>${project.title}</div>
+                            ${(project.tags || []).length
+                              ? html`<div className="d-flex gap-1 flex-wrap mt-1">
+                                  ${project.tags.map((tag) => html`<span key=${tag} className="badge text-bg-secondary">${tag}</span>`)}
+                                </div>`
+                              : ""}
                           </td>
+                          <td>${badge(project.status)}</td>
                         </tr>
                       `)}
                     </tbody>
@@ -1316,7 +1282,6 @@ function App() {
               `}
         </div>
       </main>
-      </div>
 
       <div className=${`modal ${genOpen ? "d-block" : "d-none"}`} tabIndex="-1" style=${{ backgroundColor: "rgba(0,0,0,.6)" }}>
         <div className="modal-dialog modal-dialog-centered">
@@ -1370,9 +1335,10 @@ function App() {
         </div>
       </div>
 
-      ${detailOpen && detailProject
-        ? html`
-            <div className="position-fixed top-0 end-0 bottom-0 bg-body overflow-auto p-4 shadow-lg z-3" style=${{ width: "min(1200px, 95vw)" }}>
+      <div className="detail-pane border-start bg-body flex-shrink-0 overflow-auto" style=${{ width: "min(680px, 46vw)", height: "calc(100vh - 52px)" }}>
+        ${detailOpen && detailProject
+          ? html`
+              <div className="p-4">
               <div className="d-flex align-items-start gap-3 mb-3">
                 <div className="flex-grow-1" style=${{ minWidth: 0 }}>
                   ${detailEditing && detailForm
@@ -1572,9 +1538,16 @@ function App() {
                     </div>
                   `
                 : null}
-            </div>
-          `
-        : null}
+              </div>
+            `
+          : html`
+              <div className="d-flex flex-column align-items-center justify-content-center text-center p-4 text-muted" style=${{ minHeight: "100%" }}>
+                <div className="fs-4 fw-bold mb-1">No selection</div>
+                <div className="small">Select a project from the list to view its details.</div>
+              </div>
+            `}
+          </div>
+        </div>
 
       ${previewImage
         ? html`
