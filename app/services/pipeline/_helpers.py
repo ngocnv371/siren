@@ -15,12 +15,6 @@ from app.events import emit, inc_active, dec_active
 
 log = logging.getLogger(__name__)
 
-_SCENE_SYSTEM_PROMPT = (
-    "You are a YouTube Shorts script writer and video producer. "
-    "You write engaging, punchy short-form content optimised for 60-second vertical videos."
-)
-
-
 # ── Path / formatting helpers ────────────────────────────────────────────────
 
 def _project_dir(project_id: str) -> str:

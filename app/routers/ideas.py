@@ -23,7 +23,7 @@ Session = Annotated[AsyncSession, Depends(get_session)]
 
 def _build_prompt(topic: str, count: int) -> str:
     return (
-        f"Generate {count} unique, engaging YouTube Shorts video ideas based on this topic:\n"
+        f"Generate {count} unique, engaging video ideas based on this topic:\n"
         f'"{topic}"\n\n'
         "Rules:\n"
         "- Each idea must have a compelling one-sentence title.\n"

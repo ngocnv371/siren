@@ -11,7 +11,6 @@ from app.models import Project, Topic
 from app.services.generation.service import GenerationService
 
 from ._helpers import (
-    _SCENE_SYSTEM_PROMPT,
     _emit,
     _fail_project,
     _format_project_slug,
@@ -71,10 +70,10 @@ async def run_text_stage(project_id: str) -> None:
 
         summary_hint = f'\nContext: "{existing_summary}"' if existing_summary else ""
         if profile.form == "long":
-            duration_desc = "a long-form YouTube video (target ~10 minutes, ~1300-1500 words)"
+            duration_desc = "a long-form video (target ~10 minutes, ~1300-1500 words)"
             scene_instruction = '"scenes": [\n    {\n      "voiceover": "exact words spoken in this scene",\n      "image_prompt": "detailed image generation prompt for this scene",\n      "duration": "scene duration in seconds (e.g. 15 for 15 seconds)"\n    }\n  ]'
         else:
-            duration_desc = "YouTube Shorts (target ~60 seconds)"
+            duration_desc = "a 60-second video"
             scene_instruction = '"scenes": [\n    {\n      "voiceover": "exact words spoken in this scene",\n      "image_prompt": "detailed image generation prompt for this scene"\n    }\n  ]'
         prompt = (
             f'Video title: "{project.title}"\n'
@@ -95,7 +94,7 @@ async def run_text_stage(project_id: str) -> None:
 
         svc = GenerationService()
         t_llm = time.monotonic()
-        raw = await asyncio.to_thread(svc.generate_text, prompt, _SCENE_SYSTEM_PROMPT)
+        raw = await asyncio.to_thread(svc.generate_text, prompt)
         data = _parse_json_response(raw)
 
         scenes = data.get("scenes", [])
