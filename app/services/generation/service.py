@@ -67,6 +67,7 @@ class GenerationService:
 
     def generate_text(self, prompt: str, system_prompt: str | None = None) -> str:
         """Generate text from a prompt using the configured LLM provider."""
+        print(f"Generating text with provider {self._config.providers.text}.\nSystem prompt: {system_prompt} \nPrompt: {prompt}")
         return self._text.generate(prompt, system_prompt)
 
     def generate_image(
@@ -76,6 +77,7 @@ class GenerationService:
         height: int = _DEFAULT_HEIGHT,
     ) -> bytes:
         """Generate an image and return raw bytes (PNG/JPEG)."""
+        print(f"Generating image with provider {self._config.providers.image}.\nPrompt: {prompt}\nWidth: {width}, Height: {height}")
         return self._image.generate(prompt, width, height)
 
     def generate_speech(
@@ -86,8 +88,10 @@ class GenerationService:
         speed: float = 1.0,
     ) -> bytes:
         """Synthesise speech and return raw WAV bytes."""
+        print(f"Generating speech with provider {self._config.providers.tts}.\nText: {text}\nNarrator: {narrator}, Voice: {voice}, Speed: {speed}")
         return self._tts.synthesize(text, narrator, voice, speed)
 
     def generate_music(self, prompt: str, duration: int = 60) -> bytes:
         """Generate background music and return raw audio bytes."""
+        print(f"Generating music with provider {self._config.providers.music}.\nPrompt: {prompt}\nDuration: {duration}")
         return self._music.generate(prompt, duration)
