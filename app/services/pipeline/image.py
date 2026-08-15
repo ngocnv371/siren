@@ -132,7 +132,7 @@ async def run_image_stage(project_id: str) -> None:
                  len(scenes), get_config().providers.image, visual_guide[:80])
 
         out_dir = _project_dir(project_id)
-        svc = GenerationService()
+        svc = GenerationService(profile_name=project.profile)
         img_width, img_height = _resolve_dimensions(project.profile)
         log.info("image_stage: profile=%r  form=%r  aspect=%r  dimensions=%dx%d",
                  project.profile, get_profile(project.profile).form, get_profile(project.profile).aspect, img_width, img_height)
@@ -198,7 +198,7 @@ async def run_scene_image(project_id: str, scene_index: int) -> None:
         scene = scenes[scene_index]
         visual_guide = meta.get("visual_guide", "")
         out_dir = _project_dir(project_id)
-        svc = GenerationService()
+        svc = GenerationService(profile_name=project.profile)
         img_width, img_height = _resolve_dimensions(project.profile)
 
         await _generate_scene_image(
@@ -251,7 +251,7 @@ async def run_all_scene_images(project_id: str) -> None:
 
         visual_guide = meta.get("visual_guide", "")
         out_dir = _project_dir(project_id)
-        svc = GenerationService()
+        svc = GenerationService(profile_name=project.profile)
         img_width, img_height = _resolve_dimensions(project.profile)
         log.info("all_scene_images: profile=%r  form=%r  aspect=%r  dimensions=%dx%d",
                  project.profile, get_profile(project.profile).form, get_profile(project.profile).aspect, img_width, img_height)

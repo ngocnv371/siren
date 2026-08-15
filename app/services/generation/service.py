@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.config import AppConfig, get_config
+from app.config import AppConfig, get_config, get_profile
 from .providers.base import ImageProvider, MusicProvider, TextProvider, TTSProvider
 from .providers.comfy import ComfyImageProvider, ComfyMusicProvider, ComfyTTSProvider
 from .providers.deepseek import DeepSeekTextProvider
@@ -16,8 +16,10 @@ _DEFAULT_HEIGHT = 1920
 class GenerationService:
     """Dispatches generation requests to the provider configured in config.yml."""
 
-    def __init__(self, config: AppConfig | None = None) -> None:
+    def __init__(self, config: AppConfig | None = None, profile_name: str | None = None) -> None:
         self._config = config or get_config()
+        self._profile_name = profile_name
+        self._profile = get_profile(profile_name) if profile_name else None
         self._text = self._build_text_provider()
         self._image = self._build_image_provider()
         self._tts = self._build_tts_provider()
@@ -39,10 +41,16 @@ class GenerationService:
 
     def _build_image_provider(self) -> ImageProvider:
         name = self._config.providers.image
+        comfy_workflow: str | None = None
+        if self._profile is not None:
+            if self._profile.image.provider:
+                name = self._profile.image.provider
+            if self._profile.image.comfy_workflow:
+                comfy_workflow = self._profile.image.comfy_workflow
         if name == "gemini":
             return GeminiImageProvider(self._config.gemini)
         if name == "comfy":
-            return ComfyImageProvider(self._config.comfy)
+            return ComfyImageProvider(self._config.comfy, workflow=comfy_workflow)
         raise ValueError(f"Unknown image provider: {name!r}. Choose 'gemini' or 'comfy'.")
 
     def _build_tts_provider(self) -> TTSProvider:

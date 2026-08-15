@@ -80,3 +80,8 @@ profiles:
         Keep hooks weird, eerie, and curiosity-driven.
       script: |
         Tell each story as if it is a bizarre true event with vivid sensory details.
+    # Per-profile image provider override (optional).
+    # Omit to use the global providers.image + comfy.workflows.image settings.
+    image:
+      provider: comfy            # gemini | comfy; empty = global providers.image
+      comfy_workflow: ./assets/comfy-zharuki.json   # empty = global comfy.workflows.image

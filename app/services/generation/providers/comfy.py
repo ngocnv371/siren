@@ -149,12 +149,13 @@ def _randomise_seeds(workflow: dict) -> None:
 
 
 class ComfyImageProvider(ImageProvider):
-    def __init__(self, config: ComfyConfig) -> None:
+    def __init__(self, config: ComfyConfig, workflow: str | None = None) -> None:
         self._config = config
         self._client = _ComfyClient(config.base_url)
+        self._workflow_path = workflow or config.workflows.image
 
     def generate(self, prompt: str, width: int, height: int) -> bytes:
-        workflow = _load_workflow(self._config.workflows.image)
+        workflow = _load_workflow(self._workflow_path)
         workflow = _apply_placeholders(workflow, {
             "__PROMPT__": prompt,
             "__WIDTH__": str(width),

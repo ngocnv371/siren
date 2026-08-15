@@ -112,6 +112,12 @@ class ProfilePromptsConfig:
 
 
 @dataclass
+class ProfileImageConfig:
+    provider: str = ""            # image provider override (gemini | comfy); empty = global providers.image
+    comfy_workflow: str = ""      # ComfyUI image workflow template override; empty = global comfy.workflows.image
+
+
+@dataclass
 class ProfileConfig:
     name: str = "default"
     form: str = "short"            # short | long
@@ -121,6 +127,7 @@ class ProfileConfig:
     youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
     schedule: SchedulerConfig = field(default_factory=SchedulerConfig)
     prompts: ProfilePromptsConfig = field(default_factory=ProfilePromptsConfig)
+    image: ProfileImageConfig = field(default_factory=ProfileImageConfig)
 
 
 @dataclass
@@ -169,6 +176,12 @@ def _parse_profiles(data: dict, cfg: AppConfig) -> list[ProfileConfig]:
             else:
                 raise ValueError(f"profiles[{i}].prompts must be a mapping")
 
+            image_raw = raw.get("image", {})
+            if isinstance(image_raw, dict):
+                image = ProfileImageConfig(**image_raw)
+            else:
+                raise ValueError(f"profiles[{i}].image must be a mapping")
+
             form = str(raw.get("form", "short")).lower()
             if form not in ("short", "long"):
                 form = "short"
@@ -190,6 +203,7 @@ def _parse_profiles(data: dict, cfg: AppConfig) -> list[ProfileConfig]:
                     youtube=YouTubeConfig(**raw.get("youtube", {})),
                     schedule=schedule,
                     prompts=prompts,
+                    image=image,
                 )
             )
     else:
