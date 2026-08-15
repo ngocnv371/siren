@@ -804,6 +804,8 @@ tbody td { padding: .65rem .75rem; vertical-align: middle; }
 .btn-sm.rerun-asset { border-color: var(--s-tts_ready); color: var(--s-tts_ready); }
 .btn-sm.rerun-asset:hover { background: var(--s-tts_ready); color: #fff; }
 .btn-sm.rerun-asset:disabled { opacity: .45; cursor: not-allowed; }
+.btn-sm.scene-remove { border-color: var(--danger); color: var(--danger); }
+.btn-sm.scene-remove:hover { background: var(--danger); color: #fff; }
 .music-audio { margin-top: .5rem; }
 .music-audio-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; margin-bottom: .3rem; }
 .music-audio audio { width: 100%; height: 32px; border-radius: 6px; accent-color: var(--primary); }

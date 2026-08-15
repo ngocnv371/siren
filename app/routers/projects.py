@@ -211,6 +211,31 @@ async def delete_project(project_id: str, session: Session):
     await session.commit()
 
 
+@router.delete("/{project_id}/scenes/{scene_index}/image", response_model=ProjectOut)
+async def remove_scene_image(project_id: str, scene_index: int, session: Session):
+    """Remove the generated image for a single scene (file + metadata)."""
+    project = await _get_or_404(session, project_id)
+    meta = project.get_metadata()
+    scenes = meta.get("scenes", [])
+    if not scenes or scene_index < 0 or scene_index >= len(scenes):
+        raise HTTPException(400, f"Scene index {scene_index} is out of range (0–{len(scenes)-1})")
+    scene = scenes[scene_index]
+    image_path = scene.get("image_path")
+    if not image_path:
+        raise HTTPException(400, f"Scene {scene_index + 1} has no generated image")
+    cfg = get_config()
+    removed_path = os.path.join(cfg.temp_dir, image_path)
+    scenes[scene_index] = {k: v for k, v in scene.items() if k != "image_path"}
+    meta["scenes"] = scenes
+    project.set_metadata(meta)
+    project.touch()
+    await session.commit()
+    if os.path.isfile(removed_path):
+        os.remove(removed_path)
+    await session.refresh(project)
+    return project.to_dict()
+
+
 @router.post("/{project_id}/scenes/{scene_index}/rerun/image", response_model=ProjectOut)
 async def rerun_scene_image(
     project_id: str, scene_index: int, session: Session, background_tasks: BackgroundTasks

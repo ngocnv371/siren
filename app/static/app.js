@@ -612,6 +612,17 @@ function App() {
     }
   }, [openDetail, showToast]);
 
+  const removeSceneImage = useCallback(async (id, sceneIndex) => {
+    if (!window.confirm(`Remove the generated image for scene ${sceneIndex + 1}?`)) return;
+    try {
+      await api("DELETE", `/projects/${id}/scenes/${sceneIndex}/image`);
+      showToast(`Scene ${sceneIndex + 1} image removed`, "success");
+      openDetail(id);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+  }, [openDetail, showToast]);
+
   const rerunSceneImage = useCallback(async (id, sceneIndex) => {
     try {
       await api("POST", `/projects/${id}/scenes/${sceneIndex}/rerun/image`);
@@ -1558,6 +1569,9 @@ function App() {
                                   : null}
                                 <div className="scene-rerun-actions">
                                   <button className="btn-sm rerun-asset" onClick=${() => rerunSceneImage(detailProject.id, index)}>Image</button>
+                                  ${imageFile
+                                    ? html`<button className="btn-sm scene-remove" title="Remove generated image" onClick=${() => removeSceneImage(detailProject.id, index)}>Remove</button>`
+                                    : null}
                                 </div>
                               </div>
                             </div>
