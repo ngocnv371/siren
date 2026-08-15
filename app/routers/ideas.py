@@ -21,12 +21,6 @@ router = APIRouter()
 
 Session = Annotated[AsyncSession, Depends(get_session)]
 
-_SYSTEM_PROMPT = (
-    "You are a creative YouTube Shorts producer specialising in short-form "
-    "educational and entertaining video content."
-)
-
-
 def _build_prompt(topic: str, count: int) -> str:
     return (
         f"Generate {count} unique, engaging YouTube Shorts video ideas based on this topic:\n"
@@ -111,7 +105,7 @@ async def generate_ideas(body: GenerateIdeasRequest, session: Session):
     svc = GenerationService()
     prompt = _with_profile_prompt(_build_prompt(topic.topic, body.count), profile.prompts.ideate)
     try:
-        raw = await asyncio.to_thread(svc.generate_text, prompt, _SYSTEM_PROMPT)
+        raw = await asyncio.to_thread(svc.generate_text, prompt)
     except Exception as e:
         raise HTTPException(502, f"LLM error: {e}")
 
