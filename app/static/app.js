@@ -23,17 +23,17 @@ const ACTIVITY_MAX = 60;
 
 function statusColor(status) {
   return {
-    idea: "var(--s-idea)",
-    approved: "var(--s-approved)",
-    content_ready: "var(--s-content_ready)",
-    scenes_ready: "var(--s-scenes_ready)",
-    tts_ready: "var(--s-tts_ready)",
-    music_ready: "var(--s-music_ready)",
-    images_ready: "var(--s-images_ready)",
-    rendered: "var(--s-rendered)",
-    uploaded: "var(--s-uploaded)",
-    failed: "var(--s-failed)",
-  }[status] || "var(--text)";
+    idea: "#818cf8",
+    approved: "#38bdf8",
+    content_ready: "#34d399",
+    scenes_ready: "#a78bfa",
+    tts_ready: "#fb923c",
+    music_ready: "#f59e0b",
+    images_ready: "#f472b6",
+    rendered: "#4ade80",
+    uploaded: "#a3e635",
+    failed: "#f87171",
+  }[status] || "var(--bs-body-color)";
 }
 
 function fmtDate(iso) {
@@ -67,25 +67,25 @@ async function api(method, path, body) {
 }
 
 function badge(status) {
-  return html`<span className=${`badge badge-${status}`}>${status.replace(/_/g, " ")}</span>`;
+  return html`<span className=${`badge s-badge-${status}`}>${status.replace(/_/g, " ")}</span>`;
 }
 
 function ProjectActions({ project, onApprove, onReject, onRun, onRerender, onDelete }) {
   return html`
-    <div className="td-actions" onClick=${(e) => e.stopPropagation()}>
+    <div className="d-flex gap-1 flex-wrap align-items-center" onClick=${(e) => e.stopPropagation()}>
       ${project.status === "idea"
-        ? html`<button className="btn-sm approve" onClick=${() => onApprove(project.id)}>Approve</button>`
+        ? html`<button className="btn btn-sm btn-outline-primary" onClick=${() => onApprove(project.id)}>Approve</button>`
         : null}
       ${["idea", "approved"].includes(project.status)
-        ? html`<button className="btn-sm reject" onClick=${() => onReject(project.id)}>Reject</button>`
+        ? html`<button className="btn btn-sm btn-outline-warning" onClick=${() => onReject(project.id)}>Reject</button>`
         : null}
       ${project.status === "approved"
-        ? html`<button className="btn-sm run" onClick=${() => onRun(project.id)}>Run</button>`
+        ? html`<button className="btn btn-sm btn-outline-success" onClick=${() => onRun(project.id)}>Run</button>`
         : null}
       ${["rendered", "uploaded", "failed", "images_ready"].includes(project.status)
-        ? html`<button className="btn-sm rerender" onClick=${() => onRerender(project.id)}>Re-render</button>`
+        ? html`<button className="btn btn-sm btn-outline-info" onClick=${() => onRerender(project.id)}>Re-render</button>`
         : null}
-      <button className="btn-sm delete" onClick=${() => onDelete(project.id)}>Delete</button>
+      <button className="btn btn-sm btn-outline-danger" onClick=${() => onDelete(project.id)}>Delete</button>
     </div>
   `;
 }
@@ -101,56 +101,53 @@ function ProfilePanel({ profiles, selectedProfile, onSelectProfile, topics, curr
   };
 
   return html`
-    <div className="profile-sidebar">
-      <div className="profile-sidebar-header">
-        <div className="profile-sidebar-title">Profiles</div>
-      </div>
+    <div className="d-flex flex-column flex-shrink-0 border-end bg-body p-3" style=${{ width: 260 }}>
+      <h6 className="text-uppercase text-muted fw-semibold mb-2">Profiles</h6>
       ${profiles.length
         ? html`
-            <div className="profile-list">
+            <div className="list-group list-group-flush">
               ${profiles.map((profile) => html`
-                <div
+                <button
                   key=${profile.name}
-                  className=${`profile-card ${profile.name === selectedProfile ? "is-selected" : ""}`}
+                  type="button"
+                  className=${`list-group-item list-group-item-action d-flex flex-column align-items-start gap-1 ${profile.name === selectedProfile ? "active" : ""}`}
                   onClick=${() => onSelectProfile(profile.name)}
                 >
-                  <div className="profile-card-info">
-                    <span className="profile-card-name">${profile.name}</span>
-                    <span className="profile-form-badge ${profile.form}">${profile.form === "long" ? "Long" : "Short"}</span>
-                    ${profile.aspect !== "auto" ? html`<span className="profile-aspect-badge ${profile.aspect}">${profile.aspect === "landscape" ? "Landscape" : "Portrait"}</span>` : null}
-                    ${profile.youtube_name ? html`<span className="profile-card-subtitle">${profile.youtube_name}</span>` : null}
-                  </div>
-                </div>
+                  <span className="fw-semibold text-truncate w-100">${profile.name}</span>
+                  <span className="d-flex gap-1 flex-wrap">
+                    <span className="badge ${profile.form === "long" ? "text-bg-primary" : "text-bg-success"}">${profile.form === "long" ? "Long" : "Short"}</span>
+                    ${profile.aspect !== "auto" ? html`<span className="badge text-bg-warning">${profile.aspect === "landscape" ? "Landscape" : "Portrait"}</span>` : null}
+                  </span>
+                  ${profile.youtube_name ? html`<span className="small text-muted text-truncate w-100">${profile.youtube_name}</span>` : null}
+                </button>
               `)}
             </div>
           `
-        : html`<div className="profile-panel-empty">No profiles configured.</div>`}
+        : html`<div className="text-muted small">No profiles configured.</div>`}
 
       ${selectedProfile ? html`
-        <div className="topics-sidebar-section">
-          <div className="topics-sidebar-header">
-            <div className="topics-sidebar-title">Topics (${profileTopics.length})</div>
-          </div>
-          <div className="topics-sidebar-list">
+        <div className="border-top mt-3 pt-3">
+          <h6 className="text-uppercase text-muted fw-semibold mb-2">Topics (${profileTopics.length})</h6>
+          <div className="list-group list-group-flush mb-2" style=${{ maxHeight: 200, overflowY: "auto" }}>
             ${profileTopics.length
               ? profileTopics.map((topic) => html`
                   <div
                     key=${topic.id}
-                    className=${`topic-sidebar-item ${topic.id === currentTopicId ? "is-selected" : ""}`}
+                    className=${`list-group-item list-group-item-action d-flex align-items-center gap-2 ${topic.id === currentTopicId ? "active" : ""}`}
                     onClick=${() => onTopicSelect(topic.id, topic.topic)}
                   >
-                    <span className="topic-sidebar-text" title=${topic.topic}>${topic.topic}</span>
-                    <button className="topic-sidebar-del" title="Delete" onClick=${(e) => {
+                    <span className="flex-grow-1 text-truncate" title=${topic.topic}>${topic.topic}</span>
+                    <button className="btn-close btn-close-white" title="Delete" style=${{ fontSize: ".65rem" }} onClick=${(e) => {
                       e.stopPropagation();
                       onDeleteTopic(topic.id);
-                    }}>x</button>
+                    }}></button>
                   </div>
                 `)
-              : html`<div className="topic-sidebar-empty">No topics for this profile.</div>`}
+              : html`<div className="text-muted small text-center py-2">No topics for this profile.</div>`}
           </div>
-          <div className="topic-sidebar-add">
+          <div className="input-group input-group-sm">
             <input
-              className="topic-sidebar-input"
+              className="form-control"
               value=${newTopicText}
               placeholder="New topic..."
               onInput=${(e) => setNewTopicText(e.target.value)}
@@ -158,7 +155,7 @@ function ProfilePanel({ profiles, selectedProfile, onSelectProfile, topics, curr
                 if (e.key === "Enter") handleAddTopic();
               }}
             />
-            <button className="topic-sidebar-btn" onClick=${handleAddTopic}>+</button>
+            <button className="btn btn-outline-secondary" onClick=${handleAddTopic}>+</button>
           </div>
         </div>
       ` : null}
@@ -1013,36 +1010,35 @@ function App() {
   const detailMeta = detailProject?.metadata || {};
   const scenes = detailMeta.scenes || [];
 
+  const sseDotColor = sseMode === "running" ? "var(--bs-success)" : sseMode === "error" ? "var(--bs-danger)" : "var(--bs-secondary)";
+
   return html`
     <div>
-      <nav>
-        <div className="brand"><span>siren</span></div>
+      <nav className="navbar navbar-expand bg-body border-bottom sticky-top px-3 py-0" style=${{ height: 52 }}>
+        <span className="navbar-brand fw-bold mb-0"><span className="text-primary">siren</span></span>
 
-        <div className="nav-tabs">
-          <button className=${`nav-tab ${activePage === "dashboard" ? "active" : ""}`} onClick=${() => hasTopic ? setActivePage("dashboard") : showToast("Select a topic first", "error")}>Dashboard</button>
-          <button className=${`nav-tab ${activePage === "best-shorts" ? "active" : ""}`} onClick=${() => hasTopic ? setActivePage("best-shorts") : showToast("Select a topic first", "error")}>Best Shorts</button>
-          <button className=${`nav-tab ${activePage === "projects" ? "active" : ""}`} onClick=${() => hasTopic ? setActivePage("projects") : showToast("Select a topic first", "error")}>Projects</button>
+        <div className="navbar-nav flex-row gap-1 me-auto">
+          <button className=${`btn btn-sm ${activePage === "dashboard" ? "btn-primary" : "btn-outline-secondary"}`} onClick=${() => hasTopic ? setActivePage("dashboard") : showToast("Select a topic first", "error")}>Dashboard</button>
+          <button className=${`btn btn-sm ${activePage === "best-shorts" ? "btn-primary" : "btn-outline-secondary"}`} onClick=${() => hasTopic ? setActivePage("best-shorts") : showToast("Select a topic first", "error")}>Best Shorts</button>
+          <button className=${`btn btn-sm ${activePage === "projects" ? "btn-primary" : "btn-outline-secondary"}`} onClick=${() => hasTopic ? setActivePage("projects") : showToast("Select a topic first", "error")}>Projects</button>
         </div>
 
-        <div className="nav-spacer"></div>
-        <div className="sse-indicator" title="Pipeline status">
-          <div className=${`sse-dot ${sseMode}`}></div>
-          <span className="sse-label">${sseLabel}</span>
+        <div className="d-flex align-items-center gap-2 ms-3" title="Pipeline status">
+          <span className="d-inline-block rounded-circle" style=${{ width: 8, height: 8, backgroundColor: sseDotColor }}></span>
+          <span className="small text-muted text-nowrap">${sseLabel}</span>
         </div>
         ${comfyAvailable !== null
           ? html`
-              <div className=${`comfy-indicator ${comfyAvailable ? "comfy-ok" : "comfy-down"}`} title=${comfyAvailable
+              <div className="d-flex align-items-center gap-2 border rounded px-2 py-1 ms-3 bg-body" style=${{ borderColor: comfyAvailable ? "var(--bs-success)" : "var(--bs-danger) !important" }} title=${comfyAvailable
                 ? "ComfyUI is available"
                 : `ComfyUI is unavailable — auto-restart attempts: ${comfyRestartAttempts}/${comfyMaxAttempts}`}
               >
-                <div className=${`comfy-dot ${comfyAvailable ? "comfy-ok" : "comfy-down"}`}></div>
-                <span className="comfy-label">${comfyAvailable ? "ComfyUI" : "ComfyUI down"}</span>
+                <span className="d-inline-block rounded-circle" style=${{ width: 8, height: 8, backgroundColor: comfyAvailable ? "var(--bs-success)" : "var(--bs-danger)" }}></span>
+                <span className=${`small text-nowrap ${comfyAvailable ? "text-muted" : "text-danger"}`}>${comfyAvailable ? "ComfyUI" : "ComfyUI down"}</span>
                 ${comfyPaused
                   ? html`
-                      <div className="comfy-actions">
-                        <span className="comfy-attempts" title=${`Auto-restart: ${comfyRestartAttempts}/${comfyMaxAttempts}`}>${comfyRestartAttempts}/${comfyMaxAttempts}</span>
-                        <button className="btn-comfy-restart" onClick=${restartComfy}>Restart ComfyUI</button>
-                      </div>
+                      <span className="badge text-bg-secondary font-monospace" title=${`Auto-restart: ${comfyRestartAttempts}/${comfyMaxAttempts}`}>${comfyRestartAttempts}/${comfyMaxAttempts}</span>
+                      <button className="btn btn-sm btn-outline-primary" onClick=${restartComfy}>Restart ComfyUI</button>
                     `
                   : null}
               </div>
@@ -1050,387 +1046,382 @@ function App() {
           : null}
       </nav>
 
-      <div className="page-layout">
+      <div className="d-flex">
         <${ProfilePanel} profiles=${profiles} selectedProfile=${selectedProfile} onSelectProfile=${setSelectedProfile} topics=${topics} currentTopicId=${currentTopicId} onTopicSelect=${(id, text) => { setCurrentTopicId(id); setCurrentTopicText(text); }} onAddTopic=${addTopic} onDeleteTopic=${deleteTopic} profileTopics=${profileTopics} />
-        <main>
-        <div className=${`page ${activePage === "splash" ? "active" : ""}`}>
-          <div className="splash">
-            <div className="splash-icon">[ ]</div>
-            <div className="splash-title">No topic selected</div>
-            <div className="splash-sub">Choose or create a topic workspace using the dropdown in the nav bar.</div>
+        <main className="flex-grow-1 p-3" style=${{ maxWidth: 1400 }}>
+        <div className=${`${activePage === "splash" ? "d-block" : "d-none"}`}>
+          <div className="d-flex flex-column align-items-center justify-content-center text-center gap-3 py-5">
+            <div className="fs-1 opacity-75">[ ]</div>
+            <div className="h5 fw-semibold mb-0">No topic selected</div>
+            <div className="text-muted">Choose or create a topic workspace using the dropdown in the nav bar.</div>
           </div>
         </div>
 
-        <div className=${`page ${activePage === "dashboard" ? "active" : ""}`}>
-          <div className="section-header">
-            <div>
-              <h2>${selectedProfile || "default"} · ${currentTopicText || "this topic"}</h2>
-            </div>
-            <button className="btn-generate" disabled=${!canGenerate} onClick=${() => {
+        <div className=${`${activePage === "dashboard" ? "d-block" : "d-none"}`}>
+          <div className="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-3">
+            <h2 className="h6 text-uppercase text-muted fw-semibold mb-0">${selectedProfile || "default"} · ${currentTopicText || "this topic"}</h2>
+            <button className="btn btn-primary btn-sm" disabled=${!canGenerate} onClick=${() => {
               setGeneratedIdeas([]);
               setGenCount(5);
               setGenOpen(true);
             }}>Generate Ideas</button>
           </div>
 
-          <div className="summary-row">
-            <div className="summary-chip"><div className="num">${dashboard?.total ?? "-"}</div><div className="lbl">Total</div></div>
-            <div className="summary-chip"><div className="num" style=${{ color: "var(--success)" }}>${statusCounts.rendered ?? "-"}</div><div className="lbl">Rendered</div></div>
-            <div className="summary-chip"><div className="num" style=${{ color: "var(--danger)" }}>${statusCounts.failed ?? "-"}</div><div className="lbl">Failed</div></div>
+          <div className="d-flex flex-wrap gap-3 mb-3 align-items-center">
+            <div className="d-flex flex-column align-items-center px-3 py-2 border rounded bg-body" style=${{ minWidth: 80 }}><span className="fs-4 fw-bold">${dashboard?.total ?? "-"}</span><span className="small text-muted text-uppercase">Total</span></div>
+            <div className="d-flex flex-column align-items-center px-3 py-2 border rounded bg-body" style=${{ minWidth: 80 }}><span className="fs-4 fw-bold text-success">${statusCounts.rendered ?? "-"}</span><span className="small text-muted text-uppercase">Rendered</span></div>
+            <div className="d-flex flex-column align-items-center px-3 py-2 border rounded bg-body" style=${{ minWidth: 80 }}><span className="fs-4 fw-bold text-danger">${statusCounts.failed ?? "-"}</span><span className="small text-muted text-uppercase">Failed</span></div>
             ${statusCounts.failed > 0
-              ? html`<button className="btn-recover" onClick=${recoverFailed}>Recover Failed</button>`
+              ? html`<button className="btn btn-sm btn-outline-danger" onClick=${recoverFailed}>Recover Failed</button>`
               : null}
-            <div className="summary-chip"><div className="num" style=${{ color: "var(--s-idea)" }}>${statusCounts.idea ?? "-"}</div><div className="lbl">Ideas</div></div>
+            <div className="d-flex flex-column align-items-center px-3 py-2 border rounded bg-body" style=${{ minWidth: 80 }}><span className="fs-4 fw-bold" style=${{ color: "#818cf8" }}>${statusCounts.idea ?? "-"}</span><span className="small text-muted text-uppercase">Ideas</span></div>
           </div>
 
-          <h2>Upload Schedule</h2>
-          <div className="schedule-card">
-            <div className="schedule-header">
-              <span className=${`schedule-state ${schedule.enabled ? "is-on" : "is-off"}`}>${schedule.enabled ? "Enabled" : "Disabled"}</span>
+          <h2 className="h6 text-uppercase text-muted fw-semibold mb-3">Upload Schedule</h2>
+          <div className="border rounded p-3 mb-3 bg-body">
+            <div className="d-flex justify-content-end mb-2">
+              <span className=${`badge ${schedule.enabled ? "text-bg-success" : "text-bg-secondary"}`}>${schedule.enabled ? "Enabled" : "Disabled"}</span>
             </div>
-            <div className="schedule-row">
-              <span className="schedule-label">Cron</span>
-              <span className="schedule-value">${schedule.upload_rendered_cron || "-"}</span>
+            <div className="d-flex gap-2 mb-2">
+              <span className="small text-uppercase text-muted fw-semibold" style=${{ width: 92 }}>Cron</span>
+              <span className="font-monospace">${schedule.upload_rendered_cron || "-"}</span>
             </div>
-            <div className="schedule-row">
-              <span className="schedule-label">Next runs</span>
-              <span className="schedule-runs">
+            <div className="d-flex gap-2 mb-2 align-items-center">
+              <span className="small text-uppercase text-muted fw-semibold" style=${{ width: 92 }}>Next runs</span>
+              <span className="d-flex flex-wrap gap-2">
                 ${Array.isArray(schedule.next_runs) && schedule.next_runs.length
-                  ? schedule.next_runs.map((item) => html`<span className="schedule-pill" key=${item}>${fmtScheduleDate(item)}</span>`)
+                  ? schedule.next_runs.map((item) => html`<span className="badge text-bg-secondary" key=${item}>${fmtScheduleDate(item)}</span>`)
                   : html`<span className="text-muted">No upcoming times</span>`}
               </span>
             </div>
-            ${schedule.parse_error ? html`<div className="schedule-error">${schedule.parse_error}</div>` : null}
+            ${schedule.parse_error ? html`<div className="text-warning small">${schedule.parse_error}</div>` : null}
           </div>
 
           ${currentProfileScript ? html`
-          <h2>Script Prompt</h2>
-          <div className="schedule-card">
-            <div className="schedule-row">
-              <span className="schedule-label">Strategy</span>
-              <span className="schedule-value script-prompt-value">${currentProfileScript}</span>
+          <h2 className="h6 text-uppercase text-muted fw-semibold mb-3">Script Prompt</h2>
+          <div className="border rounded p-3 mb-3 bg-body">
+            <div className="d-flex gap-2">
+              <span className="small text-uppercase text-muted fw-semibold" style=${{ width: 92 }}>Strategy</span>
+              <span className="s-pre">${currentProfileScript}</span>
             </div>
           </div>
           ` : null}
 
-          <h2>Pipeline</h2>
-          <div className="pipeline">
-            ${PIPELINE_STATUSES.map((status) => html`
-              <div key=${status} className="pipeline-step" style=${{ borderTop: `3px solid ${statusColor(status)}` }}>
-                <div className="step-count" style=${{ color: statusColor(status) }}>${statusCounts[status] ?? 0}</div>
-                <div className="step-label">${status.replace(/_/g, " ")}</div>
+          <h2 className="h6 text-uppercase text-muted fw-semibold mb-3">Pipeline</h2>
+          <div className="d-flex overflow-auto mb-3">
+            ${PIPELINE_STATUSES.map((status, idx) => html`
+              <div key=${status} className=${`flex-fill text-center border p-2 bg-body ${idx === 0 ? "rounded-start" : ""} ${idx === PIPELINE_STATUSES.length - 1 ? "rounded-end" : ""}`} style=${{ minWidth: 90, borderTop: `3px solid ${statusColor(status)}` }}>
+                <div className="fs-4 fw-bold" style=${{ color: statusColor(status) }}>${statusCounts[status] ?? 0}</div>
+                <div className="small text-muted text-nowrap text-truncate">${status.replace(/_/g, " ")}</div>
               </div>
             `)}
           </div>
 
-          <h2>Batch Queues</h2>
-          <div className="grid-5">
+          <h2 className="h6 text-uppercase text-muted fw-semibold mb-3">Batch Queues</h2>
+          <div className="row g-2 mb-3 row-cols-2 row-cols-md-5">
             ${Object.entries(queueLabels).map(([key, label]) => {
               const count = Number(queueCounts[key] ?? 0);
               return html`
-                <div className="queue-card" key=${key}>
-                  <div className="queue-name">${label}</div>
-                  <div className="queue-count">${count}</div>
-                  <div className="queue-label">pending</div>
-                  <button className="queue-run" disabled=${count === 0 || queueRunning[key]} onClick=${() => runQueue(key)}>Run</button>
+                <div className="col" key=${key}>
+                  <div className="border rounded p-3 d-flex flex-column bg-body h-100 gap-1">
+                    <div className="small text-muted text-uppercase fw-semibold">${label}</div>
+                    <div className="fs-3 fw-bold">${count}</div>
+                    <div className="small text-muted">pending</div>
+                    <button className="btn btn-sm btn-outline-success mt-auto align-self-start" disabled=${count === 0 || queueRunning[key]} onClick=${() => runQueue(key)}>Run</button>
+                  </div>
                 </div>
               `;
             })}
-            <div className="queue-card">
-              <div className="queue-name">Full Pipeline</div>
-              <div className="queue-count">${totalPending}</div>
-              <div className="queue-label">projects ready</div>
-              <button className="queue-run" disabled=${totalPending === 0 || queueRunning.all} onClick=${() => runQueue("all")}>Run All</button>
+            <div className="col">
+              <div className="border rounded p-3 d-flex flex-column bg-body h-100 gap-1">
+                <div className="small text-muted text-uppercase fw-semibold">Full Pipeline</div>
+                <div className="fs-3 fw-bold">${totalPending}</div>
+                <div className="small text-muted">projects ready</div>
+                <button className="btn btn-sm btn-outline-success mt-auto align-self-start" disabled=${totalPending === 0 || queueRunning.all} onClick=${() => runQueue("all")}>Run All</button>
+              </div>
             </div>
           </div>
 
-          <h2>Activity</h2>
-          <div className="activity-log">
+          <h2 className="h6 text-uppercase text-muted fw-semibold mb-3">Activity</h2>
+          <div className="border rounded bg-body p-1 overflow-auto mb-3" style=${{ maxHeight: 240 }}>
             ${activityLog.length
               ? activityLog.map((entry, index) => html`
-                  <div key=${`${entry.ts.toISOString()}-${index}`} className=${`activity-entry level-${entry.level}`}>
-                    <span className="activity-time">${entry.ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
-                    <span className="activity-msg">${entry.msg}</span>
-                    ${entry.project_id ? html`<span className="activity-pid" title=${entry.project_id}>${entry.project_id.slice(0, 8)}</span>` : null}
+                  <div key=${`${entry.ts.toISOString()}-${index}`} className=${`d-flex gap-2 px-2 py-1 rounded align-items-baseline ${entry.level === "success" ? "text-success" : entry.level === "error" ? "text-danger" : entry.level === "warning" ? "text-warning" : ""}`}>
+                    <span className="small text-muted font-monospace text-nowrap" style=${{ minWidth: "8ch" }}>${entry.ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                    <span className="flex-grow-1">${entry.msg}</span>
+                    ${entry.project_id ? html`<span className="small font-monospace text-muted bg-body border rounded px-1 text-nowrap" title=${entry.project_id}>${entry.project_id.slice(0, 8)}</span>` : null}
                   </div>
                 `)
-              : html`<div className="activity-empty">Waiting for activity...</div>`}
+              : html`<div className="text-muted small text-center py-2">Waiting for activity...</div>`}
           </div>
         </div>
 
-        <div className=${`page ${activePage === "best-shorts" ? "active" : ""}`}>
-          <div className="section-header">
+        <div className=${`${activePage === "best-shorts" ? "d-block" : "d-none"}`}>
+          <div className="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-3">
             <div>
-              <h2>Best Performing Shorts</h2>
-              <p className="section-sub">Top YouTube Shorts sorted by views and matched against uploaded projects.</p>
+              <h2 className="h6 text-uppercase text-muted fw-semibold mb-1">Best Performing Shorts</h2>
+              <p className="text-muted mb-0" style=${{ maxWidth: 720 }}>Top YouTube Shorts sorted by views and matched against uploaded projects.</p>
             </div>
           </div>
 
-          <div className="summary-row best-shorts-summary">
-            <button className="btn-secondary" onClick=${loadBestShorts} disabled=${bestShortsLoading}>${bestShortsLoading ? "Loading..." : "Fetch data"}</button>
-            <button className="btn-secondary" onClick=${analyzeBestShorts} disabled=${bestShortsAnalyzing}>${bestShortsAnalyzing ? "Analyzing..." : "Analyze"}</button>
-            <div className="summary-chip"><div className="num">${bestSummary.total || "-"}</div><div className="lbl">Rows</div></div>
-            <div className="summary-chip"><div className="num" style=${{ color: "var(--success)" }}>${bestSummary.matched || "-"}</div><div className="lbl">Matched</div></div>
-            <div className="summary-chip"><div className="num" style=${{ color: "var(--warning)" }}>${bestSummary.unmatched || "-"}</div><div className="lbl">Unmatched</div></div>
+          <div className="d-flex flex-wrap gap-3 mb-3 align-items-center">
+            <button className="btn btn-outline-secondary btn-sm" onClick=${loadBestShorts} disabled=${bestShortsLoading}>${bestShortsLoading ? "Loading..." : "Fetch data"}</button>
+            <button className="btn btn-outline-secondary btn-sm" onClick=${analyzeBestShorts} disabled=${bestShortsAnalyzing}>${bestShortsAnalyzing ? "Analyzing..." : "Analyze"}</button>
+            <div className="d-flex flex-column align-items-center px-3 py-2 border rounded bg-body" style=${{ minWidth: 80 }}><span className="fs-4 fw-bold">${bestSummary.total || "-"}</span><span className="small text-muted text-uppercase">Rows</span></div>
+            <div className="d-flex flex-column align-items-center px-3 py-2 border rounded bg-body" style=${{ minWidth: 80 }}><span className="fs-4 fw-bold text-success">${bestSummary.matched || "-"}</span><span className="small text-muted text-uppercase">Matched</span></div>
+            <div className="d-flex flex-column align-items-center px-3 py-2 border rounded bg-body" style=${{ minWidth: 80 }}><span className="fs-4 fw-bold text-warning">${bestSummary.unmatched || "-"}</span><span className="small text-muted text-uppercase">Unmatched</span></div>
           </div>
 
           ${bestShortsAnalysis
             ? html`
-                <div className="best-shorts-analysis">
-                  <div className="best-shorts-analysis-head">
-                    <div className="best-shorts-analysis-title">Shorts Analysis</div>
-                    <div className="best-shorts-analysis-badge">${bestShortsAnalysisSource}</div>
+                <div className="border rounded border-start border-4 border-primary p-3 mb-3 bg-body">
+                  <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
+                    <span className="small text-muted text-uppercase fw-semibold">Shorts Analysis</span>
+                    <span className="badge text-bg-primary">${bestShortsAnalysisSource}</span>
                   </div>
-                  <div className="best-shorts-analysis-body">${bestShortsAnalysis}</div>
+                  <div className="s-pre">${bestShortsAnalysis}</div>
                 </div>
               `
             : null}
 
           ${!bestShorts.length
-            ? html`<div className="empty">Click Fetch data to fetch the latest data from YouTube Studio.</div>`
+            ? html`<div className="text-muted text-center py-5">Click Fetch data to fetch the latest data from YouTube Studio.</div>`
             : html`
-                <table>
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Title</th>
-                      <th>Views</th>
-                      <th>Project</th>
-                      <th>Status</th>
-                      <th>Created</th>
-                      <th>Link</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${bestShorts.map((item, index) => html`
-                      <tr key=${`${item.title}-${index}`} onClick=${() => item.project_id ? openDetail(item.project_id) : null}>
-                        <td className="td-rank">${index + 1}</td>
-                        <td className="td-title">${item.title || "Untitled short"}</td>
-                        <td className="td-views">${Number(item.views || 0).toLocaleString()}</td>
-                        <td className="td-title">${item.project_id ? item.project_id.slice(0, 8) : html`<span className="text-muted">Not matched</span>`}</td>
-                        <td>${item.status ? badge(item.status) : html`<span className="text-muted">-</span>`}</td>
-                        <td className="td-date">${fmtDate(item.created_at)}</td>
-                        <td className="td-link" onClick=${(e) => e.stopPropagation()}>
-                          ${item.url ? html`<a className="table-link" href=${item.url} target="_blank" rel="noreferrer">Open</a>` : html`<span className="text-muted">-</span>`}
-                        </td>
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead className="text-muted small text-uppercase">
+                      <tr>
+                        <th className="text-nowrap">#</th>
+                        <th>Title</th>
+                        <th className="text-nowrap">Views</th>
+                        <th>Project</th>
+                        <th>Status</th>
+                        <th className="text-nowrap">Created</th>
+                        <th>Link</th>
                       </tr>
-                    `)}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      ${bestShorts.map((item, index) => html`
+                        <tr key=${`${item.title}-${index}`} className=${item.project_id ? "cursor-pointer" : ""} onClick=${() => item.project_id ? openDetail(item.project_id) : null}>
+                          <td className="text-nowrap">${index + 1}</td>
+                          <td className="text-truncate fw-medium" style=${{ maxWidth: 380 }}>${item.title || "Untitled short"}</td>
+                          <td className="text-nowrap">${Number(item.views || 0).toLocaleString()}</td>
+                          <td className="text-truncate" style=${{ maxWidth: 380 }}>${item.project_id ? item.project_id.slice(0, 8) : html`<span className="text-muted">Not matched</span>`}</td>
+                          <td>${item.status ? badge(item.status) : html`<span className="text-muted">-</span>`}</td>
+                          <td className="small text-muted text-nowrap">${fmtDate(item.created_at)}</td>
+                          <td className="text-nowrap" onClick=${(e) => e.stopPropagation()}>
+                            ${item.url ? html`<a className="btn btn-sm btn-link p-0" href=${item.url} target="_blank" rel="noreferrer">Open</a>` : html`<span className="text-muted">-</span>`}
+                          </td>
+                        </tr>
+                      `)}
+                    </tbody>
+                  </table>
+                </div>
               `}
         </div>
 
-        <div className=${`page ${activePage === "projects" ? "active" : ""}`}>
-          <div className="toolbar">
-            <input className="search-input" type="search" placeholder="Search by title..." value=${search} onInput=${(e) => setSearch(e.target.value)} />
-            <select className="select-filter" value=${tagFilter} onChange=${(e) => setTagFilter(e.target.value)}>
+        <div className=${`${activePage === "projects" ? "d-block" : "d-none"}`}>
+          <div className="d-flex gap-2 mb-3 align-items-center flex-wrap">
+            <input className="form-control form-control-sm flex-grow-1" style=${{ minWidth: 180 }} type="search" placeholder="Search by title..." value=${search} onInput=${(e) => setSearch(e.target.value)} />
+            <select className="form-select form-select-sm w-auto" value=${tagFilter} onChange=${(e) => setTagFilter(e.target.value)}>
               <option value="">All tags</option>
               ${allTags.map((tag) => html`<option key=${tag} value=${tag}>${tag}</option>`)}
             </select>
-            <select className="select-filter" value=${statusFilter} onChange=${(e) => setStatusFilter(e.target.value)}>
+            <select className="form-select form-select-sm w-auto" value=${statusFilter} onChange=${(e) => setStatusFilter(e.target.value)}>
               <option value="">All statuses</option>
               ${PIPELINE_STATUSES.map((status) => html`<option key=${status} value=${status}>${status}</option>`)}
             </select>
-            <select className="select-filter bulk-action-select" value=${bulkAction} onChange=${(e) => setBulkAction(e.target.value)}>
+            <select className="form-select form-select-sm w-auto" style=${{ minWidth: 170 }} value=${bulkAction} onChange=${(e) => setBulkAction(e.target.value)}>
               <option value="">Bulk action...</option>
               <option value="delete">Bulk delete</option>
               <option value="status">Bulk status update</option>
             </select>
-            <button className="btn-sm" disabled=${selectedInView === 0 || !bulkAction} onClick=${applyBulkAction}>Apply</button>
-            <span className="bulk-selected-count">${selectedInView} selected</span>
+            <button className="btn btn-sm btn-outline-secondary" disabled=${selectedInView === 0 || !bulkAction} onClick=${applyBulkAction}>Apply</button>
+            <span className="small text-muted text-nowrap">${selectedInView} selected</span>
           </div>
 
           ${projectsLoading
-            ? html`<div className="empty">Loading...</div>`
+            ? html`<div className="text-muted text-center py-5">Loading...</div>`
             : !projects.length
-            ? html`<div className="empty">No projects yet. Generate ideas to get started.</div>`
+            ? html`<div className="text-muted text-center py-5">No projects yet. Generate ideas to get started.</div>`
             : html`
-                <table>
-                  <thead>
-                    <tr>
-                      <th className="th-check">
-                        <input
-                          className="header-check"
-                          type="checkbox"
-                          checked=${projects.length > 0 && selectedInView === projects.length}
-                          onChange=${(e) => {
-                            if (e.target.checked) {
-                              setSelectedIds(new Set(projects.map((project) => project.id)));
-                            } else {
-                              setSelectedIds(new Set());
-                            }
-                          }}
-                          aria-label="Select all projects"
-                        />
-                      </th>
-                      <th>Title</th>
-                      <th>Profile</th>
-                      <th>Status</th>
-                      <th>Tags</th>
-                      <th>Created</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${projects.map((project) => html`
-                      <tr key=${project.id} className=${selectedIds.has(project.id) ? "is-selected" : ""} onClick=${() => openDetail(project.id)}>
-                        <td className="td-check" onClick=${(e) => e.stopPropagation()}>
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead className="text-muted small text-uppercase">
+                      <tr>
+                        <th className="text-center" style=${{ width: 42 }}>
                           <input
-                            className="row-check"
+                            className="form-check-input"
                             type="checkbox"
-                            checked=${selectedIds.has(project.id)}
+                            checked=${projects.length > 0 && selectedInView === projects.length}
                             onChange=${(e) => {
-                              const next = new Set(selectedIds);
-                              if (e.target.checked) next.add(project.id);
-                              else next.delete(project.id);
-                              setSelectedIds(next);
+                              if (e.target.checked) {
+                                setSelectedIds(new Set(projects.map((project) => project.id)));
+                              } else {
+                                setSelectedIds(new Set());
+                              }
                             }}
-                            aria-label=${`Select ${project.title}`}
+                            aria-label="Select all projects"
                           />
-                        </td>
-                        <td className="td-title">${project.title}</td>
-                        <td className="td-title">${project.profile || "-"}</td>
-                        <td>${badge(project.status)}</td>
-                        <td className="td-tags">
-                          ${(project.tags || []).length
-                            ? project.tags.map((tag) => html`<span key=${tag} className="tag">${tag}</span>`)
-                            : html`<span className="text-muted">-</span>`}
-                        </td>
-                        <td className="td-date">${fmtDate(project.created_at)}</td>
-                        <td>
-                          <${ProjectActions}
-                            project=${project}
-                            onApprove=${approveProject}
-                            onReject=${rejectProject}
-                            onRun=${runPipeline}
-                            onRerender=${reRender}
-                            onDelete=${deleteProject}
-                          />
-                        </td>
+                        </th>
+                        <th>Title</th>
+                        <th>Profile</th>
+                        <th>Status</th>
+                        <th>Tags</th>
+                        <th class="text-nowrap">Created</th>
+                        <th>Actions</th>
                       </tr>
-                    `)}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      ${projects.map((project) => html`
+                        <tr key=${project.id} className=${`${selectedIds.has(project.id) ? "table-primary" : ""} ${project.status ? "cursor-pointer" : ""}`} onClick=${() => openDetail(project.id)}>
+                          <td className="text-center" onClick=${(e) => e.stopPropagation()}>
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              checked=${selectedIds.has(project.id)}
+                              onChange=${(e) => {
+                                const next = new Set(selectedIds);
+                                if (e.target.checked) next.add(project.id);
+                                else next.delete(project.id);
+                                setSelectedIds(next);
+                              }}
+                              aria-label=${`Select ${project.title}`}
+                            />
+                          </td>
+                          <td className="text-truncate fw-medium" style=${{ maxWidth: 380 }}>${project.title}</td>
+                          <td className="text-truncate" style=${{ maxWidth: 380 }}>${project.profile || "-"}</td>
+                          <td>${badge(project.status)}</td>
+                          <td className="d-flex gap-1 flex-wrap">
+                            ${(project.tags || []).length
+                              ? project.tags.map((tag) => html`<span key=${tag} className="badge text-bg-primary">${tag}</span>`)
+                              : html`<span className="text-muted">-</span>`}
+                          </td>
+                          <td className="small text-muted text-nowrap">${fmtDate(project.created_at)}</td>
+                          <td>
+                            <${ProjectActions}
+                              project=${project}
+                              onApprove=${approveProject}
+                              onReject=${rejectProject}
+                              onRun=${runPipeline}
+                              onRerender=${reRender}
+                              onDelete=${deleteProject}
+                            />
+                          </td>
+                        </tr>
+                      `)}
+                    </tbody>
+                  </table>
+                </div>
               `}
         </div>
       </main>
+      </div>
 
-      <div className=${`modal-overlay ${genOpen ? "open" : ""}`}>
-        <div className="modal">
-          <button className="modal-close" onClick=${() => setGenOpen(false)}>x</button>
-          <div className="modal-title">Generate Ideas</div>
-          <div className="modal-sub">${canGenerate ? `Topic: ${currentTopicText}` : "Select a topic first"}</div>
+      <div className=${`modal ${genOpen ? "d-block" : "d-none"}`} tabIndex="-1" style=${{ backgroundColor: "rgba(0,0,0,.6)" }}>
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">Generate Ideas</h5>
+              <button className="btn-close" aria-label="Close" onClick=${() => setGenOpen(false)}></button>
+            </div>
+            <div className="modal-body">
+              <div className="text-muted small mb-3">${canGenerate ? `Topic: ${currentTopicText}` : "Select a topic first"}</div>
 
-          ${generatedIdeas.length === 0
-            ? html`
-                <div style=${{ fontSize: ".78rem", color: "var(--primary)", marginBottom: ".75rem", fontWeight: 500 }}>
-                  ${selectedProfile || "default"}
-                </div>
-                <div className="form-field">
-                  <label className="form-label">Full Prompt</label>
-                  <div className="ideate-prompt-text">${genPreviewPrompt || "Loading..."}</div>
-                </div>
-                <div className="form-field">
-                  <label className="form-label">How many ideas?</label>
-                  <div className="count-options">
-                    ${[3, 5, 8, 10].map((count) => html`
-                      <div key=${count} className=${`count-option ${genCount === count ? "selected" : ""}`} onClick=${() => setGenCount(count)}>${count}</div>
-                    `)}
-                  </div>
-                </div>
-              `
-            : null}
-
-          ${generatedIdeas.length > 0
-            ? html`
-                <div style=${{ fontSize: ".8rem", color: "var(--success)", marginBottom: ".5rem" }}>
-                  ${generatedIdeas.length} idea(s) created
-                </div>
-                <div className="generated-list">
-                  ${generatedIdeas.map((idea) => html`
-                    <div key=${idea.id} className="gen-item">
-                      <div className="gen-title">${idea.title}</div>
-                      ${idea.metadata?.summary ? html`<div className="gen-summary">${idea.metadata.summary}</div>` : null}
+              ${generatedIdeas.length === 0
+                ? html`
+                    <div className="text-primary small fw-medium mb-3">${selectedProfile || "default"}</div>
+                    <div className="mb-3">
+                      <label className="form-label small text-muted">Full Prompt</label>
+                      <div className="border rounded p-2 bg-body-tertiary s-pre small">${genPreviewPrompt || "Loading..."}</div>
                     </div>
-                  `)}
-                </div>
-              `
-            : null}
+                    <div className="mb-3">
+                      <label className="form-label small text-muted">How many ideas?</label>
+                      <div className="d-flex gap-2">
+                        ${[3, 5, 8, 10].map((count) => html`
+                          <button key=${count} type="button" className=${`btn flex-fill ${genCount === count ? "btn-primary" : "btn-outline-primary"}`} onClick=${() => setGenCount(count)}>${count}</button>
+                        `)}
+                      </div>
+                    </div>
+                  `
+                : null}
 
-          <div className="modal-actions">
-            <button className="btn-secondary" onClick=${() => setGenOpen(false)} disabled=${genLoading}>Cancel</button>
-            ${generatedIdeas.length
-              ? html`<button className="btn-primary" onClick=${() => setGenOpen(false)}>Done</button>`
-              : html`<button className="btn-primary" onClick=${submitGenerate} disabled=${genLoading || !canGenerate}>${genLoading ? "Generating..." : "Generate"}</button>`}
+              ${generatedIdeas.length > 0
+                ? html`
+                    <div className="text-success small mb-2">${generatedIdeas.length} idea(s) created</div>
+                    <div className="d-flex flex-column gap-2 mt-3">
+                      ${generatedIdeas.map((idea) => html`
+                        <div key=${idea.id} className="border rounded p-2 bg-body">
+                          <div className="fw-medium">${idea.title}</div>
+                          ${idea.metadata?.summary ? html`<div className="small text-muted">${idea.metadata.summary}</div>` : null}
+                        </div>
+                      `)}
+                    </div>
+                  `
+                : null}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline-secondary" onClick=${() => setGenOpen(false)} disabled=${genLoading}>Cancel</button>
+              ${generatedIdeas.length
+                ? html`<button className="btn btn-primary" onClick=${() => setGenOpen(false)}>Done</button>`
+                : html`<button className="btn btn-primary" onClick=${submitGenerate} disabled=${genLoading || !canGenerate}>${genLoading ? "Generating..." : "Generate"}</button>`}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className=${`detail-overlay ${detailOpen ? "open" : ""}`} onClick=${closeDetail}></div>
-      <div className=${`detail-panel ${detailOpen ? "open" : ""}`}>
-        <div className="detail-header">
-          <div className="detail-header-info">
-            ${detailEditing && detailForm
-              ? html`
-                  <input
-                    className="edit-title-input"
-                    value=${detailForm.title}
-                    placeholder="Project title"
-                    onInput=${(e) => setFormField("title", e.target.value)}
-                  />
-                  <input
-                    className="edit-input"
-                    style=${{ marginTop: ".4rem" }}
-                    value=${detailForm.profile}
-                    list="detail-profile-options"
-                    placeholder="Profile"
-                    onInput=${(e) => setFormField("profile", e.target.value)}
-                  />
-                  <datalist id="detail-profile-options">
-                    ${profiles.map((p) => html`<option key=${p.name} value=${p.name}></option>`)}
-                  </datalist>
-                `
-              : html`
-                  <div className="detail-title">${detailProject?.title || "Project"}</div>
-                  <div className="detail-meta">
-                    ${detailProject ? html`${badge(detailProject.status)} · <span className="text-muted">${detailProject.profile || "default"}</span> · <span className="text-muted">${detailProject.id}</span> · ${fmtDate(detailProject.created_at)}` : ""}
-                  </div>
-                `}
-          </div>
-          <button className="detail-close" onClick=${closeDetail}>x</button>
-        </div>
+      ${detailOpen && detailProject
+        ? html`
+            <div className="position-fixed top-0 end-0 bottom-0 bg-body overflow-auto p-4 shadow-lg z-3" style=${{ width: "min(1200px, 95vw)" }}>
+              <div className="d-flex align-items-start gap-3 mb-3">
+                <div className="flex-grow-1" style=${{ minWidth: 0 }}>
+                  ${detailEditing && detailForm
+                    ? html`
+                        <input className="form-control fw-semibold mb-2" value=${detailForm.title} placeholder="Project title" onInput=${(e) => setFormField("title", e.target.value)} />
+                        <input className="form-control form-control-sm" value=${detailForm.profile} list="detail-profile-options" placeholder="Profile" onInput=${(e) => setFormField("profile", e.target.value)} />
+                        <datalist id="detail-profile-options">
+                          ${profiles.map((p) => html`<option key=${p.name} value=${p.name}></option>`)}
+                        </datalist>
+                      `
+                    : html`
+                        <div className="h5 fw-semibold mb-1">${detailProject.title || "Project"}</div>
+                        <div className="small text-muted">
+                          ${badge(detailProject.status)} <span className="mx-1">·</span> ${detailProject.profile || "default"} <span className="mx-1">·</span> ${detailProject.id} <span className="mx-1">·</span> ${fmtDate(detailProject.created_at)}
+                        </div>
+                      `}
+                </div>
+                <button className="btn-close" aria-label="Close" onClick=${closeDetail}></button>
+              </div>
 
-        ${detailProject
-          ? html`
-              <div className="detail-actions">
-                ${detailProject.status === "idea" ? html`<button className="btn-sm approve" onClick=${() => approveProject(detailProject.id)}>Approve</button>` : null}
-                ${["idea", "approved"].includes(detailProject.status) ? html`<button className="btn-sm reject" onClick=${() => rejectProject(detailProject.id)}>Reject</button>` : null}
-                ${detailProject.status === "approved" ? html`<button className="btn-sm run" onClick=${() => runPipeline(detailProject.id)}>Run Pipeline</button>` : null}
+              <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
+                ${detailProject.status === "idea" ? html`<button className="btn btn-sm btn-outline-primary" onClick=${() => approveProject(detailProject.id)}>Approve</button>` : null}
+                ${["idea", "approved"].includes(detailProject.status) ? html`<button className="btn btn-sm btn-outline-warning" onClick=${() => rejectProject(detailProject.id)}>Reject</button>` : null}
+                ${detailProject.status === "approved" ? html`<button className="btn btn-sm btn-outline-success" onClick=${() => runPipeline(detailProject.id)}>Run Pipeline</button>` : null}
                 ${["rendered", "failed", "images_ready"].includes(detailProject.status)
-                  ? html`<button className="btn-sm rerender" onClick=${() => reRender(detailProject.id)}>Re-render</button>`
+                  ? html`<button className="btn btn-sm btn-outline-info" onClick=${() => reRender(detailProject.id)}>Re-render</button>`
                   : null}
                 ${detailProject.status === "rendered"
-                  ? html`<button className="btn-sm upload" onClick=${() => uploadToYouTube(detailProject.id)}>Upload to YouTube</button>`
+                  ? html`<button className="btn btn-sm btn-outline-success" onClick=${() => uploadToYouTube(detailProject.id)}>Upload to YouTube</button>`
                   : null}
-                <button className="btn-sm" onClick=${() => openProjectFolder(detailProject.id)}>Open Folder</button>
-                <select className="select-filter status-jump" value=${detailProject.status} onChange=${(e) => setProjectStatus(detailProject.id, e.target.value)}>
+                <button className="btn btn-sm btn-outline-secondary" onClick=${() => openProjectFolder(detailProject.id)}>Open Folder</button>
+                <select className="form-select form-select-sm w-auto" value=${detailProject.status} onChange=${(e) => setProjectStatus(detailProject.id, e.target.value)}>
                   ${PIPELINE_STATUSES.map((status) => html`<option key=${status} value=${status}>${status.replace(/_/g, " ")}</option>`)}
                 </select>
                 ${detailEditing
                   ? html`
-                      <button className="btn-sm save" onClick=${saveDetail} disabled=${detailSaving}>${detailSaving ? "Saving..." : "Save"}</button>
-                      <button className="btn-sm" onClick=${cancelEdit} disabled=${detailSaving}>Cancel</button>
+                      <button className="btn btn-sm btn-outline-success" onClick=${saveDetail} disabled=${detailSaving}>${detailSaving ? "Saving..." : "Save"}</button>
+                      <button className="btn btn-sm btn-outline-secondary" onClick=${cancelEdit} disabled=${detailSaving}>Cancel</button>
                     `
-                  : html`<button className="btn-sm edit" onClick=${startEdit}>Edit</button>`}
-                <button className="btn-sm delete" onClick=${() => deleteProject(detailProject.id)}>Delete</button>
+                  : html`<button className="btn btn-sm btn-outline-secondary" onClick=${startEdit}>Edit</button>`}
+                <button className="btn btn-sm btn-outline-danger" onClick=${() => deleteProject(detailProject.id)}>Delete</button>
               </div>
 
               ${detailMeta.video_path
                 ? html`
-                    <div className="detail-section">
-                      <div className="detail-section-title">Preview</div>
-                      <div className="video-preview">
-                        <video controls preload="metadata" src=${`/api/projects/${detailProject.id}/video/${encodeURIComponent(detailMeta.video_path.replace(/\\/g, "/").split("/").pop())}`}></video>
+                    <div className="mb-3">
+                      <div className="small text-uppercase text-muted fw-semibold mb-2">Preview</div>
+                      <div className="border rounded overflow-hidden bg-black">
+                        <video className="w-100 d-block" style=${{ maxHeight: 320 }} controls preload="metadata" src=${`/api/projects/${detailProject.id}/video/${encodeURIComponent(detailMeta.video_path.replace(/\\/g, "/").split("/").pop())}`}></video>
                       </div>
                     </div>
                   `
@@ -1438,50 +1429,52 @@ function App() {
 
               ${detailMeta.error
                 ? html`
-                    <div className="detail-section">
-                      <div className="detail-section-title">Error</div>
-                      <div className="meta-val pre detail-error-box">${String(detailMeta.error)}</div>
+                    <div className="mb-3">
+                      <div className="small text-uppercase text-muted fw-semibold mb-2">Error</div>
+                      <div className="border border-danger bg-danger-subtle text-danger rounded p-2 s-pre small">${String(detailMeta.error)}</div>
                     </div>
                   `
                 : null}
 
-              <div className="detail-section">
-                <div className="detail-section-title">Metadata</div>
+              <div className="mb-3">
+                <div className="small text-uppercase text-muted fw-semibold mb-2">Metadata</div>
                 ${detailEditing && detailForm
                   ? html`
-                      <div className="edit-fields">
-                        <div className="edit-field">
-                          <label className="edit-label">Summary</label>
-                          <textarea className="edit-textarea" rows=${3} value=${detailForm.metadata.summary} onInput=${(e) => setFormMeta("summary", e.target.value)}></textarea>
+                      <div className="d-flex flex-column gap-2">
+                        <div>
+                          <label className="edit-label form-label small text-uppercase text-muted fw-semibold mb-1">Summary</label>
+                          <textarea className="form-control" rows=${3} value=${detailForm.metadata.summary} onInput=${(e) => setFormMeta("summary", e.target.value)}></textarea>
                         </div>
-                        <div className="edit-field">
-                          <label className="edit-label">Transcript</label>
-                          <textarea className="edit-textarea" rows=${5} value=${detailForm.metadata.transcript} onInput=${(e) => setFormMeta("transcript", e.target.value)}></textarea>
+                        <div>
+                          <label className="form-label small text-uppercase text-muted fw-semibold mb-1">Transcript</label>
+                          <textarea className="form-control" rows=${5} value=${detailForm.metadata.transcript} onInput=${(e) => setFormMeta("transcript", e.target.value)}></textarea>
                         </div>
-                        <div className="edit-field">
-                          <label className="edit-label">Narrator</label>
-                          <input className="edit-input" value=${detailForm.metadata.narrator} onInput=${(e) => setFormMeta("narrator", e.target.value)} />
+                        <div>
+                          <label className="form-label small text-uppercase text-muted fw-semibold mb-1">Narrator</label>
+                          <input className="form-control" value=${detailForm.metadata.narrator} onInput=${(e) => setFormMeta("narrator", e.target.value)} />
                         </div>
-                        <div className="edit-field">
-                          <label className="edit-label">Music prompt</label>
-                          <textarea className="edit-textarea" rows=${3} value=${detailForm.metadata.music} onInput=${(e) => setFormMeta("music", e.target.value)}></textarea>
+                        <div>
+                          <label className="form-label small text-uppercase text-muted fw-semibold mb-1">Music prompt</label>
+                          <textarea className="form-control" rows=${3} value=${detailForm.metadata.music} onInput=${(e) => setFormMeta("music", e.target.value)}></textarea>
                         </div>
-                        <div className="edit-field">
-                          <label className="edit-label">Visual guide</label>
-                          <textarea className="edit-textarea" rows=${4} value=${detailForm.metadata.visual_guide} onInput=${(e) => setFormMeta("visual_guide", e.target.value)}></textarea>
+                        <div>
+                          <label className="form-label small text-uppercase text-muted fw-semibold mb-1">Visual guide</label>
+                          <textarea className="form-control" rows=${4} value=${detailForm.metadata.visual_guide} onInput=${(e) => setFormMeta("visual_guide", e.target.value)}></textarea>
                         </div>
-                        <div className="edit-field">
-                          <label className="edit-label">Duration (seconds)</label>
-                          <input className="edit-input" type="number" value=${detailForm.metadata.duration} onInput=${(e) => setFormMeta("duration", e.target.value)} />
-                        </div>
-                        <div className="edit-field">
-                          <label className="edit-label">Word count</label>
-                          <input className="edit-input" type="number" value=${detailForm.metadata.word_count} onInput=${(e) => setFormMeta("word_count", e.target.value)} />
+                        <div className="row g-2">
+                          <div className="col-6">
+                            <label className="form-label small text-uppercase text-muted fw-semibold mb-1">Duration (seconds)</label>
+                            <input className="form-control" type="number" value=${detailForm.metadata.duration} onInput=${(e) => setFormMeta("duration", e.target.value)} />
+                          </div>
+                          <div className="col-6">
+                            <label className="form-label small text-uppercase text-muted fw-semibold mb-1">Word count</label>
+                            <input className="form-control" type="number" value=${detailForm.metadata.word_count} onInput=${(e) => setFormMeta("word_count", e.target.value)} />
+                          </div>
                         </div>
                       </div>
                     `
                   : html`
-                      <div className="meta-grid">
+                      <div className="row g-2">
                         ${Object.entries({
                           Summary: detailMeta.summary,
                           Transcript: detailMeta.transcript,
@@ -1493,9 +1486,11 @@ function App() {
                         })
                           .filter((entry) => entry[1] != null && String(entry[1]).trim() !== "")
                           .map(([key, value]) => html`
-                            <div key=${key} className="meta-item">
-                              <div className="meta-key">${key}</div>
-                              <div className="meta-val pre">${String(value)}</div>
+                            <div key=${key} className="col-md-6">
+                              <div className="border rounded p-2 bg-body h-100">
+                                <div className="small text-muted mb-1">${key}</div>
+                                <div className="font-monospace small s-pre text-break">${String(value)}</div>
+                              </div>
                             </div>
                           `)}
                       </div>
@@ -1504,13 +1499,13 @@ function App() {
 
               ${(detailProject.tags || []).length || detailEditing
                 ? html`
-                    <div className="detail-section">
-                      <div className="detail-section-title">Tags</div>
+                    <div className="mb-3">
+                      <div className="small text-uppercase text-muted fw-semibold mb-2">Tags</div>
                       ${detailEditing && detailForm
-                        ? html`<input className="edit-input" value=${detailForm.tags} placeholder="Comma separated" onInput=${(e) => setFormField("tags", e.target.value)} />`
+                        ? html`<input className="form-control" value=${detailForm.tags} placeholder="Comma separated" onInput=${(e) => setFormField("tags", e.target.value)} />`
                         : html`
-                            <div className="td-tags">
-                              ${detailProject.tags.map((tag) => html`<span key=${tag} className="tag">${tag}</span>`)}
+                            <div className="d-flex gap-1 flex-wrap">
+                              ${detailProject.tags.map((tag) => html`<span key=${tag} className="badge text-bg-primary">${tag}</span>`)}
                             </div>
                           `}
                     </div>
@@ -1519,17 +1514,13 @@ function App() {
 
               ${detailMeta.music_path
                 ? html`
-                    <div className="detail-section">
-                      <div className="detail-section-title">Background Music</div>
-                      <div className="music-audio">
-                        <audio
-                          controls
-                          preload="none"
-                          src=${`/api/projects/${detailProject.id}/audio/${encodeURIComponent(detailMeta.music_path.replace(/\\/g, "/").split("/").pop())}`}
-                        ></audio>
+                    <div className="mb-3">
+                      <div className="small text-uppercase text-muted fw-semibold mb-1">Background Music</div>
+                      <div className="mt-2">
+                        <audio className="w-100" controls preload="none" src=${`/api/projects/${detailProject.id}/audio/${encodeURIComponent(detailMeta.music_path.replace(/\\/g, "/").split("/").pop())}`}></audio>
                       </div>
-                      <div style=${{ marginTop: ".4rem" }}>
-                        <button className="btn-sm rerun-asset" onClick=${() => rerunMusic(detailProject.id)}>Regenerate Music</button>
+                      <div className="mt-2">
+                        <button className="btn btn-sm btn-outline-warning" onClick=${() => rerunMusic(detailProject.id)}>Regenerate Music</button>
                       </div>
                     </div>
                   `
@@ -1537,40 +1528,40 @@ function App() {
 
               ${scenes.length
                 ? html`
-                    <div className="detail-section">
-                      <div className="detail-section-title-row">
-                        <span className="detail-section-title">Scenes (${scenes.length})</span>
-                        <span className="section-title-actions">
-                          <button className="btn-sm rerun-asset" onClick=${() => rerunAllImages(detailProject.id)}>All Images</button>
+                    <div className="mb-3">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <span className="small text-uppercase text-muted fw-semibold">Scenes (${scenes.length})</span>
+                        <span className="d-flex gap-1">
+                          <button className="btn btn-sm btn-outline-warning" onClick=${() => rerunAllImages(detailProject.id)}>All Images</button>
                         </span>
                       </div>
-                      <div className="scenes-list">
+                      <div className="d-flex flex-column gap-2">
                         ${scenes.map((scene, index) => {
                           const imageFile = scene.image_path ? scene.image_path.replace(/\\/g, "/").split("/").pop() : null;
                           const audioFile = scene.audio_path ? scene.audio_path.replace(/\\/g, "/").split("/").pop() : null;
                           return html`
-                            <div key=${index} className="scene-card">
+                            <div key=${index} className="border rounded p-2 d-flex gap-2 align-items-start bg-body">
                               ${imageFile
-                                ? html` <div className="scene-thumb" onClick=${() => setPreviewImage(`/api/projects/${detailProject.id}/image/${encodeURIComponent(imageFile)}`)}>
-                                      <img loading="lazy" src=${`/api/projects/${detailProject.id}/image/${encodeURIComponent(imageFile)}`} alt=${`Scene ${index + 1}`} />
+                                ? html` <div className="flex-shrink-0 rounded overflow-hidden cursor-pointer" style=${{ width: 72 }} onClick=${() => setPreviewImage(`/api/projects/${detailProject.id}/image/${encodeURIComponent(imageFile)}`)}>
+                                      <img loading="lazy" className="d-block rounded" style=${{ width: 72, height: "auto" }} src=${`/api/projects/${detailProject.id}/image/${encodeURIComponent(imageFile)}`} alt=${`Scene ${index + 1}`} />
                                     </div>
                                   `
                                 : null}
-                              <div className="scene-body">
-                                <div className="scene-num">Scene ${index + 1}${scene.duration != null ? ` · ${scene.duration}s` : ""}</div>
-                                <div className="scene-voiceover">${scene.voiceover || ""}</div>
-                                ${scene.image_prompt ? html`<div className="scene-prompt">${scene.image_prompt}</div>` : null}
+                              <div className="flex-grow-1" style=${{ minWidth: 0 }}>
+                                <div className="small text-uppercase text-muted fw-semibold mb-1">Scene ${index + 1}${scene.duration != null ? ` · ${scene.duration}s` : ""}</div>
+                                <div className="mb-1">${scene.voiceover || ""}</div>
+                                ${scene.image_prompt ? html`<div className="small text-muted fst-italic mb-1">${scene.image_prompt}</div>` : null}
                                 ${audioFile
                                   ? html`
-                                      <div className="scene-audio">
-                                        <audio controls preload="none" src=${`/api/projects/${detailProject.id}/audio/${encodeURIComponent(audioFile)}`}></audio>
+                                      <div className="mt-1">
+                                        <audio className="w-100" style=${{ height: 28 }} controls preload="none" src=${`/api/projects/${detailProject.id}/audio/${encodeURIComponent(audioFile)}`}></audio>
                                       </div>
                                     `
                                   : null}
-                                <div className="scene-rerun-actions">
-                                  <button className="btn-sm rerun-asset" onClick=${() => rerunSceneImage(detailProject.id, index)}>Image</button>
+                                <div className="d-flex gap-2 flex-wrap mt-2">
+                                  <button className="btn btn-sm btn-outline-warning" onClick=${() => rerunSceneImage(detailProject.id, index)}>Image</button>
                                   ${imageFile
-                                    ? html`<button className="btn-sm scene-remove" title="Remove generated image" onClick=${() => removeSceneImage(detailProject.id, index)}>Remove</button>`
+                                    ? html`<button className="btn btn-sm btn-outline-danger" title="Remove generated image" onClick=${() => removeSceneImage(detailProject.id, index)}>Remove</button>`
                                     : null}
                                 </div>
                               </div>
@@ -1581,16 +1572,23 @@ function App() {
                     </div>
                   `
                 : null}
-            `
-          : html`<div className="empty">No content yet.</div>`}
-        </main>
-      </div>
+            </div>
+          `
+        : null}
 
-      <div className=${`image-preview-overlay ${previewImage ? "open" : ""}`} onClick=${() => setPreviewImage(null)}>
-        ${previewImage ? html`<img src=${previewImage} alt="Preview" />` : null}
-      </div>
+      ${previewImage
+        ? html`
+            <div className="position-fixed top-0 start-0 w-100 h-100 bg-black d-flex align-items-center justify-content-center cursor-pointer" style=${{ zIndex: 1040 }} onClick=${() => setPreviewImage(null)}>
+              <img src=${previewImage} alt="Preview" className="rounded" style=${{ maxWidth: "90vw", maxHeight: "90vh", objectFit: "contain" }} />
+            </div>
+          `
+        : null}
 
-      <div id="toast" className=${toastState.msg ? `show ${toastState.type}` : ""}>${toastState.msg}</div>
+      <div className=${`toast align-items-center text-bg-${toastState.type === "error" ? "danger" : "success"} border-0 position-fixed bottom-0 start-50 translate-middle-x mb-3 ${toastState.msg ? "show" : "d-none"}`} role="alert" style=${{ zIndex: 1080 }}>
+        <div className="d-flex">
+          <div className="toast-body">${toastState.msg}</div>
+        </div>
+      </div>
     </div>
   `;
 }
