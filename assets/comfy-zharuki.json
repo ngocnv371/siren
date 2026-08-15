@@ -98,15 +98,11 @@
   "16": {
     "inputs": {
       "unet_name": "ZIT\\harukiMIX_zit2606.safetensors",
-      "weight_dtype": "fp16",
-      "model_type": "z-image",
-      "on_the_fly_quantization": false,
-      "enable_convrot": true,
-      "lora_mode": "None"
+      "weight_dtype": "default"
     },
-    "class_type": "OTUNetLoaderW8A8",
+    "class_type": "UNETLoader",
     "_meta": {
-      "title": "Load Diffusion Model INT8 (W8A8)"
+      "title": "Load Diffusion Model"
     }
   },
   "17": {
